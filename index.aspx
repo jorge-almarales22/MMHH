@@ -58,38 +58,16 @@
         ];
 
         const PROCESOS_COORDINADOR = {
-            "Premaquinado Portatil": [
-                "Servo Motor 1", "Servo Motor 2", "Unidad Hidr\u00E1ulica 1", "Unidad Hidr\u00E1ulica 2", 
-                "Unidad Hidr\u00E1ulica 3", "Unidad Hidr\u00E1ulica 4", "Unidad Hidr\u00E1ulica 5", 
-                "Unidad Hidr\u00E1ulica 6", "Unidad Hidr\u00E1ulica 7"
-            ],
-            "Soldadura MMHH": [],
-            "Rotosoldado": ["Rotosoldador #1", "Rotosoldador #2", "Rotosoldador #3"],
-            "Soldadura Soporte": [],
-            "Mecanizado Convencional": [
-                "Sierra Mecanica", "Taladro Foradia", "Taladro Ibarmia", "Taladro Soraluce (Rectificado)", 
-                "Taladro Soraluce (Pasillo)", "Taladro Soraluce (comedor)", "Torno Bulgaria", 
-                "Torno Namsun", "Torno peque\u00F1o", "Torno Pinacho CNC", "Torno Pinacho Convencional", 
-                "Torno Ticino 330", "Torno Ticino 520", "Torno Torrent"
-            ],
-            "Evaluaci\u00F3n": [],
-            "Visual": [],
-            "Tintas Penetrantes": [],
-            "Part\u00EDculas Magn\u00E9ticas": [],
-            "Ultra sonido": [],
-            "Pintura": [],
-            "Mecanizado Portatil": [
-                "Servo Motor 1", "Servo Motor 2", "Unidad Hidr\u00E1ulica 1", "Unidad Hidr\u00E1ulica 2", 
-                "Unidad Hidr\u00E1ulica 3", "Unidad Hidr\u00E1ulica 4", "Unidad Hidr\u00E1ulica 5", 
-                "Unidad Hidr\u00E1ulica 6", "Unidad Hidr\u00E1ulica 7"
-            ],
-            "Premaquinado Convencional": [
-                "Sierra Mecanica", "Taladro Foradia", "Taladro Ibarmia", "Taladro Soraluce (Rectificado)", 
-                "Taladro Soraluce (Pasillo)", "Taladro Soraluce (comedor)", "Torno Bulgaria", 
-                "Torno Namsun", "Torno peque\u00F1o", "Torno Pinacho CNC", "Torno Pinacho Convencional", 
-                "Torno Ticino 330", "Torno Ticino 520", "Torno Torrent"
-            ],
-            "Cortar": ["Sierra Mecanica"]
+            "Ensayo No destructivo": ["Visual", "Tintas Penetrantes", "Particulas Magneticas", "Ultra sonido", "Otro"],
+            "Reparaci\u00F3n": ["Alojamiento", "Superficie plana", "Superficie cilindrica", "Rosca interna", "Rosca Externa", "Centro Punto", "Puesto de sello", "Puesto de pista", "Otro"],
+            "Evaluaci\u00F3n": ["Reusabilidad de parte", "Torcedura de ejes", "Otro"],
+            "Rectificado": ["Dimensional", "Bloque", "Cig\u00FCe\u00F1al", "\u00C1rbol de Levas", "Bielas", "Caja de Balancines", "Balancines", "Seguidores", "Eje De balancines", "Pi\u00F1oner\u00EDa", "Carcasa Frontal", "Carcasa Trasera", "Multiples", "Otro"],
+            "Fabricaci\u00F3n": ["C\u00E1rter", "Pieza con planos", "Pieza sin planos"],
+            "Soldadura Soporte": ["Modificaci\u00F3n de pieza", "Reparar grieta", "Retirar pistas", "Retirar rodamientos", "Retirar rotula", "Asegurar parte a base", "Calentado de parte", "Otro"],
+            "Mecanizado portatil": ["Componente en taller NWS", "Equipo en Taller permanente", "Equipo en campo", "Otro"],
+            "Taller Externo": ["Metalizado", "Reparaci\u00F3n especial", "Otro"],
+            "Soporte de Mantenimiento": ["Evaluaci\u00F3n", "Reparaci\u00F3n", "Inspecci\u00F3n", "Otro"],
+            "Otro": ["Otro"]
         };
 
         const EQUIPOS_COORDINADOR = [
@@ -132,6 +110,15 @@
             "P0": 0, "P01": 1, "P02": 3, "P03": 5, "P1": 7, "P2": 30, "P3": 60, "P4": 90, "P5": 180, "PL": 365
         };
 
+        const SUPERINTENDENCIAS = [
+            "", "Acarreo electrico", "Acarreo mecanico", "Almacenes e inventario",
+            "Cargue electrico", "Cargue hidraulico", "EALL", "Energia", "Ferrocarril",
+            "Geotecnia e hidrologia", "Ingenier\u00EDa, mtto instalaciones y servi",
+            "Plantas de carbon", "Prevencion y control de emergencias", "Produccion",
+            "Puerto bolivar", "Sin superintendencia", "Superintendencia de servicios el\u00E9ctricos",
+            "Tecnologia informacion", "TOR"
+        ];
+
         const COORDINADORES_LISTA = ["Jesus Padilla", "Isaac Jimenez", "Manuel Redondo", "Francisco Silvera", "Otro"];
         const AREAS_ENTREGA = ["Mesa Amarilla", "Oficina de Coordinaci\u00F3n", "\u00C1rea Amarilla Mecanizado", "\u00C1rea Amarilla de Bloques", "\u00C1rea de END", "\u00C1rea de v\u00EDa 40", "Otra"];
 
@@ -153,11 +140,12 @@
             Cantidad: 1,
             CoordinadorRecibe: "Jesus Padilla",
             AreaEntrega: "Mesa Amarilla",
+            Superintendencia: "",
             ImagenesBase64: []
         };
 
         const initialCoordinatorFormState = {
-            ProcesoRequerido: "Premaquinado Portatil",
+            ProcesoRequerido: "Ensayo No destructivo",
             SubprocesoRequerido: "",
             ComplementoMMHH: "",
             Equipo: "Bru\u00F1idora",
@@ -376,7 +364,7 @@
                 if (item.parsedData && item.parsedData.Coordinador) {
                     const c = item.parsedData.Coordinador;
                     setCoordForm({
-                        ProcesoRequerido: c.ProcesoRequerido || "Premaquinado Portatil",
+                        ProcesoRequerido: c.ProcesoRequerido || "Ensayo No destructivo",
                         SubprocesoRequerido: c.SubprocesoRequerido || "",
                         ComplementoMMHH: c.ComplementoMMHH || "",
                         Equipo: c.Equipo || "Bru\u00F1idora",
@@ -578,19 +566,29 @@
                                 </div>
                                 <div>
                                     <label className={labelClass}>PN (Part Number)</label>
-                                    <input type="text" name="PN" value={formData.PN} onChange={handleChange} className={inputClass} placeholder="Ej. 104-599" />
+                                    <input type="text" name="PN" value={formData.PN} onChange={handleChange} className={inputClass} placeholder="Ej. 104-599" required />
                                 </div>
                                 <div>
-                                    <label className={labelClass}>SC (S&iacute;mbolo de Control)</label>
+                                    <label className={labelClass}>SC (StockCode)</label>
                                     <input type="number" name="SC" value={formData.SC} onChange={handleChange} className={inputClass} placeholder="Ej. 12" />
                                 </div>
                                 <div className="md:col-span-2">
                                     <label className={labelClass}>Nombre de quien solicita</label>
-                                    <input type="text" name="NombreContacto" value={formData.NombreContacto} onChange={handleChange} className={inputClass} placeholder="Ej. Juan P&eacute;rez" />
+                                    <input type="text" name="NombreContacto" value={formData.NombreContacto} onChange={handleChange} className={inputClass} placeholder="Ej. Juan P&eacute;rez" required />
                                 </div>
                                 <div className="md:col-span-2">
                                     <label className={labelClass}>Celular</label>
-                                    <input type="number" name="Celular" value={formData.Celular} onChange={handleChange} className={inputClass} placeholder="Ej. 3101234567" />
+                                    <input type="number" name="Celular" value={formData.Celular} onChange={handleChange} className={inputClass} placeholder="Ej. 3101234567" required />
+                                </div>
+                            </div>
+
+                            {/* SUPERINTENDENCIA */}
+                            <div className="bg-white/40 p-5 rounded-xl border border-white/50">
+                                <div className="w-full md:w-1/2">
+                                    <label className={labelClass}>Superintendencia</label>
+                                    <select name="Superintendencia" value={formData.Superintendencia || ""} onChange={handleChange} className={inputClass} required>
+                                        {SUPERINTENDENCIAS.map(s => <option key={s} value={s}>{s || "-- Seleccione Superintendencia --"}</option>)}
+                                    </select>
                                 </div>
                             </div>
 
@@ -614,6 +612,24 @@
                                         <span className="text-xl font-black text-cerrejon-orange">
                                             {PRIORIDADES[formData.Prioridad]} {PRIORIDADES[formData.Prioridad] === 1 ? "D\u00EDa" : "D\u00EDas"}
                                         </span>
+                                    </div>
+                                    <div className="mt-3 text-[10px]">
+                                        <table className="w-full border-collapse">
+                                            <thead>
+                                                <tr className="border-b border-gray-300">
+                                                    <th className="py-1 text-left font-bold text-gray-500 uppercase">Prioridad</th>
+                                                    <th className="py-1 text-right font-bold text-gray-500 uppercase">D&iacute;as</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {Object.entries(PRIORIDADES).map(([prio, dias]) => (
+                                                    <tr key={prio} className={`border-b border-gray-200/50 ${formData.Prioridad === prio ? 'bg-cerrejon-orange/10 font-bold' : ''}`}>
+                                                        <td className="py-0.5 text-left text-gray-700">{prio}</td>
+                                                        <td className="py-0.5 text-right text-gray-700">{dias}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
                             </div>
