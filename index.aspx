@@ -633,31 +633,11 @@
                                 <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-200 flex flex-col justify-between">
                                     <div>
                                         <label className={labelClass}>Prioridad</label>
-                                        <div className="flex gap-2 items-start">
-                                            <select name="Prioridad" value={formData.Prioridad} onChange={handleChange} className={`${inputClass} flex-1`} required>
-                                                {Object.keys(PRIORIDADES).map(prio => (
-                                                    <option key={prio} value={prio}>{prio}</option>
-                                                ))}
-                                            </select>
-                                            <div className="text-[9px] flex-shrink-0 bg-white/70 rounded-lg border border-gray-200 overflow-hidden">
-                                                <table className="border-collapse">
-                                                    <thead>
-                                                        <tr className="bg-gray-100">
-                                                            <th className="px-1.5 py-0.5 text-left font-bold text-gray-500">P</th>
-                                                            <th className="px-1.5 py-0.5 text-right font-bold text-gray-500">D&iacute;as</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {Object.entries(PRIORIDADES).map(([prio, dias]) => (
-                                                            <tr key={prio} className={`border-t border-gray-200/50 ${formData.Prioridad === prio ? 'bg-cerrejon-orange/10 font-bold' : ''}`}>
-                                                                <td className="px-1.5 py-0.5 text-left text-gray-700">{prio}</td>
-                                                                <td className="px-1.5 py-0.5 text-right text-gray-700">{dias}</td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </div>
+                                        <select name="Prioridad" value={formData.Prioridad} onChange={handleChange} className={inputClass} required>
+                                            {Object.keys(PRIORIDADES).map(prio => (
+                                                <option key={prio} value={prio}>{prio} -> {PRIORIDADES[prio]} {PRIORIDADES[prio] === 1 ? "d\u00EDa" : "d\u00EDas"}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                     <div className="mt-3 p-2 bg-white/80 rounded-lg border border-cerrejon-orange/30 text-center">
                                         <span className="block text-[10px] font-bold text-gray-500 uppercase">Tiempo de Soluci&oacute;n</span>
