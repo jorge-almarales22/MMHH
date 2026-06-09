@@ -149,10 +149,7 @@
         };
 
         const initialCoordinatorFormState = {
-            ProcesoRequerido: "Ensayo No destructivo",
-            ProcesoRequeridoCustom: "",
-            SubprocesoRequerido: "",
-            SubprocesoRequeridoCustom: "",
+            Procesos: [{ ProcesoRequerido: "Ensayo No destructivo", ProcesoRequeridoCustom: "", SubprocesoRequerido: "", SubprocesoRequeridoCustom: "" }],
             ComplementoMMHH: "",
             Equipo: "Bru\u00F1idora",
             Estado: "En espera",
@@ -189,14 +186,15 @@
         });
 
         function App() {
-            // Datos del Formulario Cliente
             const [formData, setFormData] = useState(initialFormState);
             const [evidenceFiles, setEvidenceFiles] = useState([]); 
             const [items, setItems] = useState([]);
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState(null);
+            const [activeTab, setActiveTab] = useState('cliente');
+            const [dbFilter, setDbFilter] = useState({ search: '', estado: 'todos', fechaDesde: '', fechaHasta: '' });
+            const [coordFilter, setCoordFilter] = useState('todos');
 
-            // Sistema de autenticación de SharePoint
             const [userAuth, setUserAuth] = useState({
                 authenticated: false,
                 name: "Cargando usuario...",
@@ -204,7 +202,6 @@
                 isCoordinator: false
             });
 
-            // Modales y Gestión de Coordinación
             const [viewModalItem, setViewModalItem] = useState(null); 
             const [manageModalItem, setManageModalItem] = useState(null); 
             const [coordForm, setCoordForm] = useState(initialCoordinatorFormState);
@@ -221,7 +218,6 @@
                 fetchItems();
             }, []);
 
-            // Consulta de usuario actual mediante API de SharePoint
             const authenticateUser = async () => {
                 try {
                     const response = await fetch(`${SP_CONFIG.siteUrl}/_api/web/currentuser`, {
@@ -239,14 +235,16 @@
                         email: spUser.Email,
                         isCoordinator: isCoord
                     });
+                    if (isCoord) setActiveTab('coordinador');
                 } catch (err) {
-                    console.log("No se pudo autodetectar el usuario de SharePoint. Modo de simulación local activo.");
+                    console.log("No se pudo autodetectar el usuario de SharePoint. Modo de simulaci\u00F3n local activo.");
                     setUserAuth({
                         authenticated: false,
                         name: "Usuario Desarrollador",
                         email: "Isaac.Jimenez@cerrejon.com",
                         isCoordinator: true
                     });
+                    setActiveTab('coordinador');
                 }
             };
 
@@ -270,7 +268,7 @@
             const fetchItems = async () => {
                 setLoading(true);
                 try {
-                    const response = await fetch(`${SP_CONFIG.siteUrl}/_api/web/lists/getbytitle('${SP_CONFIG.listTitle}')/items?$top=150&$orderby=Created desc`, { 
+                    const response = await fetch(`${SP_CONFIG.siteUrl}/_api/web/lists/getbytitle('${SP_CONFIG.listTitle}')/items?$top=500&$orderby=Created desc`, { 
                         headers: { "Accept": "application/json;odata=verbose" }
                     });
                     if (!response.ok) throw new Error("Error de red al consultar los \u00EDtems.");
@@ -374,16 +372,12 @@
                 finally { setLoading(false); }
             };
 
-            // Abrir formulario de gestión
             const handleOpenManageModal = (item) => {
                 setManageModalItem(item);
                 if (item.parsedData && item.parsedData.Coordinador) {
                     const c = item.parsedData.Coordinador;
                     setCoordForm({
-                        ProcesoRequerido: c.ProcesoRequerido || "Ensayo No destructivo",
-                        ProcesoRequeridoCustom: c.ProcesoRequeridoCustom || "",
-                        SubprocesoRequerido: c.SubprocesoRequerido || "",
-                        SubprocesoRequeridoCustom: c.SubprocesoRequeridoCustom || "",
+                        Procesos: (c.Procesos && c.Procesos.length > 0) ? c.Procesos : [{ ProcesoRequerido: c.ProcesoRequerido || "Ensayo No destructivo", ProcesoRequeridoCustom: c.ProcesoRequeridoCustom || "", SubprocesoRequerido: c.SubprocesoRequerido || "", SubprocesoRequeridoCustom: c.SubprocesoRequeridoCustom || "" }],
                         ComplementoMMHH: c.ComplementoMMHH || "",
                         Equipo: c.Equipo || "Bru\u00F1idora",
                         Estado: c.Estado || "En espera",
@@ -398,21 +392,40 @@
                 if (coordFileInputRef.current) coordFileInputRef.current.value = "";
             };
 
-            const handleCoordFormChange = (e) => {
-                const { name, value } = e.target;
+            const handleAddProceso = () => {
+                setCoordForm(prev => ({
+                    ...prev,
+                    Procesos: [...prev.Procesos, { ProcesoRequerido: "Ensayo No destructivo", ProcesoRequeridoCustom: "", SubprocesoRequerido: "", SubprocesoRequeridoCustom: "" }]
+                }));
+            };
+
+            const handleRemoveProceso = (index) => {
+                if (coordForm.Procesos.length <= 1) return;
+                setCoordForm(prev => ({
+                    ...prev,
+                    Procesos: prev.Procesos.filter((_, i) => i !== index)
+                }));
+            };
+
+            const handleProcesoChange = (index, name, value) => {
                 setCoordForm(prev => {
-                    const updated = { ...prev, [name]: value };
+                    const newProcesos = [...prev.Procesos];
+                    newProcesos[index] = { ...newProcesos[index], [name]: value };
                     if (name === "ProcesoRequerido") {
                         const subs = PROCESOS_COORDINADOR[value] || [];
-                        updated.SubprocesoRequerido = subs.length > 0 ? subs[0] : "";
-                        updated.ProcesoRequeridoCustom = "";
-                        updated.SubprocesoRequeridoCustom = "";
+                        newProcesos[index].SubprocesoRequerido = subs.length > 0 ? subs[0] : "";
+                        newProcesos[index].ProcesoRequeridoCustom = "";
+                        newProcesos[index].SubprocesoRequeridoCustom = "";
                     }
-                    return updated;
+                    return { ...prev, Procesos: newProcesos };
                 });
             };
 
-            // Guardar respuesta del Coordinador en el mismo registro
+            const handleCoordFormChange = (e) => {
+                const { name, value } = e.target;
+                setCoordForm(prev => ({ ...prev, [name]: value }));
+            };
+
             const handleSaveCoordResponse = async (e) => {
                 e.preventDefault();
                 setLoading(true); setError(null);
@@ -426,9 +439,12 @@
                         coordBase64Images.push({ name: file.name, data: b64 });
                     }
 
-                    let finalCoordForm = { ...coordForm };
-                    if (coordForm.ProcesoRequerido === "Otro" && coordForm.ProcesoRequeridoCustom) finalCoordForm.ProcesoRequerido = coordForm.ProcesoRequeridoCustom;
-                    if (coordForm.SubprocesoRequerido === "Otro" && coordForm.SubprocesoRequeridoCustom) finalCoordForm.SubprocesoRequerido = coordForm.SubprocesoRequeridoCustom;
+                    let finalProcesos = coordForm.Procesos.map(p => {
+                        let proceso = { ...p };
+                        if (p.ProcesoRequerido === "Otro" && p.ProcesoRequeridoCustom) proceso.ProcesoRequerido = p.ProcesoRequeridoCustom;
+                        if (p.SubprocesoRequerido === "Otro" && p.SubprocesoRequeridoCustom) proceso.SubprocesoRequerido = p.SubprocesoRequeridoCustom;
+                        return proceso;
+                    });
 
                     const updatedParsedData = {
                         ...manageModalItem.parsedData,
@@ -436,7 +452,13 @@
                             Email: userAuth.email,
                             Nombre: userAuth.name,
                             FechaDiligenciado: getCurrentDate(),
-                            ...finalCoordForm,
+                            Procesos: finalProcesos,
+                            ComplementoMMHH: coordForm.ComplementoMMHH,
+                            Equipo: coordForm.Equipo,
+                            Estado: coordForm.Estado,
+                            EstimadoHorasHombre: coordForm.EstimadoHorasHombre,
+                            FechaEstimado: coordForm.FechaEstimado,
+                            NotificacionCliente: coordForm.NotificacionCliente,
                             ImagenesBase64: coordBase64Images
                         }
                     };
@@ -474,12 +496,103 @@
                 }
             };
 
+            const handleDownloadCSV = () => {
+                const filtered = getFilteredItems();
+                const headers = ["Fecha","OT","Flota","Componente","PN","SC","Soporte","Tipo Requerimiento","Prioridad","Superintendencia","Contacto","Celular","Coordinador Recibe","Area Entrega","Estado Gestion","Procesos","Equipo","H/H Estimadas","Fecha Estimado","Complemento MMHH","Notificacion Cliente"];
+                const rows = filtered.map(item => {
+                    const d = item.parsedData;
+                    if (d.Error) return null;
+                    const c = d.Coordinador;
+                    const procesos = c && c.Procesos ? c.Procesos.map(p => `${p.ProcesoRequerido}${p.SubprocesoRequerido ? ": " + p.SubprocesoRequerido : ""}`).join(" | ") : (c ? `${c.ProcesoRequerido || ""}${c.SubprocesoRequerido ? ": " + c.SubprocesoRequerido : ""}` : "");
+                    return [
+                        d.Fecha || "", d.OT || "", d.Flota || "", d.NombreComponente || "", d.PN || "", d.SC || "", d.Soporte || "",
+                        (d.TipoRequerimiento || []).join("; "), d.Prioridad || "", d.Superintendencia || "",
+                        d.NombreContacto || "", d.Celular || "", d.CoordinadorRecibe || "", d.AreaEntrega || "",
+                        c ? c.Estado : "Sin Asignar", procesos,
+                        c ? c.Equipo : "", c ? c.EstimadoHorasHombre : "", c ? c.FechaEstimado : "", c ? c.ComplementoMMHH : "", c ? c.NotificacionCliente : ""
+                    ];
+                }).filter(Boolean);
+                
+                let csv = "\uFEFF" + headers.join(",") + "\n";
+                rows.forEach(row => {
+                    csv += row.map(cell => `"${String(cell || "").replace(/"/g, '""')}"`).join(",") + "\n";
+                });
+                
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `MMHH_DB_${getCurrentDate()}.csv`;
+                link.click();
+                URL.revokeObjectURL(url);
+            };
+
+            const getFilteredItems = () => {
+                let filtered = [...items];
+                
+                if (dbFilter.search) {
+                    const s = dbFilter.search.toLowerCase();
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        if (d.Error) return false;
+                        return (d.OT || "").toLowerCase().includes(s) ||
+                               (d.NombreComponente || "").toLowerCase().includes(s) ||
+                               (d.Flota || "").toLowerCase().includes(s) ||
+                               (d.Soporte || "").toLowerCase().includes(s) ||
+                               (d.PN || "").toLowerCase().includes(s);
+                    });
+                }
+                
+                if (dbFilter.estado !== 'todos') {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        if (d.Error) return false;
+                        if (dbFilter.estado === 'sin_asignar') return !d.Coordinador;
+                        if (dbFilter.estado === 'gestionado') return !!d.Coordinador;
+                        return d.Coordinador && d.Coordinador.Estado === dbFilter.estado;
+                    });
+                }
+                
+                if (dbFilter.fechaDesde) {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        return d.Fecha >= dbFilter.fechaDesde;
+                    });
+                }
+                if (dbFilter.fechaHasta) {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        return d.Fecha <= dbFilter.fechaHasta;
+                    });
+                }
+                
+                return filtered;
+            };
+
+            const getCoordFilteredItems = () => {
+                let filtered = [...items];
+                if (coordFilter === 'en_proceso') {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        if (d.Error || !d.Coordinador) return false;
+                        return d.Coordinador.Estado !== "Terminado";
+                    });
+                } else if (coordFilter === 'terminados') {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        if (d.Error || !d.Coordinador) return false;
+                        return d.Coordinador.Estado === "Terminado";
+                    });
+                }
+                return filtered;
+            };
+
             const glassCard = "bg-white/70 backdrop-blur-xl border border-white/40 shadow-2xl rounded-2xl";
             const inputClass = "block w-full rounded-xl bg-white/60 border border-gray-300 focus:bg-white focus:border-cerrejon-orange focus:ring-2 focus:ring-cerrejon-orange/50 transition-all p-3 text-sm outline-none";
             const labelClass = "block text-xs font-bold text-gray-700 mb-2 uppercase tracking-widest";
 
             return (
-                <div className="max-w-[1400px] mx-auto py-10 px-4 sm:px-6 lg:px-8 min-h-screen flex flex-col gap-10 relative">
+                <div className="max-w-[1400px] mx-auto py-10 px-4 sm:px-6 lg:px-8 min-h-screen flex flex-col gap-8 relative">
                     
                     {/* ENCABEZADO */}
                     <header className={`${glassCard} p-6 flex flex-col sm:flex-row items-center justify-between gap-4 relative overflow-hidden`}>
@@ -497,7 +610,6 @@
                             </div>
                         </div>
 
-                        {/* SISTEMA DE AUTENTICACIÓN VISUAL */}
                         <div className="flex items-center gap-4 bg-gray-950/10 p-3 rounded-xl border border-white/20 z-10">
                             <div className="text-right">
                                 <p className="text-xs font-black text-gray-900">{userAuth.name}</p>
@@ -516,7 +628,7 @@
                             </div>
                         </div>
                     </header>
- 
+
                     {error && (
                         <div className="bg-red-500/90 backdrop-blur-md text-white border-l-4 border-white p-4 rounded-xl shadow-lg relative">
                             <button onClick={() => setError(null)} className="absolute top-2 right-4 text-white hover:text-gray-200 font-bold">&times;</button>
@@ -524,240 +636,359 @@
                         </div>
                     )}
 
-                    {/* FORMULARIO DE CLIENTE (SOLICITUD) */}
-                    <div className={`${glassCard} p-8 w-full`}>
-                        <h2 className="text-2xl font-extrabold text-gray-800 tracking-tight mb-6">Nuevo Requerimiento de Mantenimiento</h2>
-                        
-                        <form onSubmit={handleSubmit} className="space-y-6">
-                            {/* GENERALES */}
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-5 bg-gray-50/50 p-5 rounded-xl border border-gray-200/50">
-                                <div>
-                                    <label className={labelClass}>Fecha Registro</label>
-                                    <input type="date" name="Fecha" value={formData.Fecha} onChange={handleChange} className={inputClass} required />
-                                </div>
-                                <div>
-                                    <label className={labelClass}>OT (8 Caracteres)</label>
-                                    <input type="text" name="OT" maxLength={8} value={formData.OT} onChange={handleChange} className={inputClass} placeholder="Ej. A0104599" required />
-                                    {formData.OT && formData.OT.length !== 8 && (
-                                        <p className="text-[10px] text-red-500 mt-1 font-bold">Debe contener exactamente 8 caracteres ({formData.OT.length}/8)</p>
-                                    )}
-                                </div>
-                                <div>
-                                    <label className={labelClass}>Flota</label>
-                                    <select name="Flota" value={formData.Flota} onChange={handleChange} className={inputClass} required>
-                                        {FLOTAS.map(f => <option key={f} value={f}>{f}</option>)}
-                                    </select>
-                                    {formData.Flota === "Otra" && (
-                                        <input type="text" name="FlotaCustom" value={formData.FlotaCustom} onChange={handleChange} className={`${inputClass} mt-2`} placeholder="Especifique la flota..." required />
-                                    )}
-                                </div>
-                                <div>
-                                    <label className={labelClass}>Cantidad</label>
-                                    <input type="number" name="Cantidad" min="1" step="1" value={formData.Cantidad} onChange={(e) => setFormData({ ...formData, Cantidad: parseInt(e.target.value) || 1 })} className={inputClass} required />
-                                </div>
-                            </div>
-
-                            {/* DINÁMICO: SOPORTE & TIPO REQUERIMIENTO */}
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 bg-white/40 p-5 rounded-xl border border-white/50">
-                                <div>
-                                    <label className={labelClass}>Soporte (Categor&iacute;a Principal)</label>
-                                    <select name="Soporte" value={formData.Soporte} onChange={handleChange} className={inputClass} required>
-                                        <option value="">-- Seleccione Soporte --</option>
-                                        {Object.keys(SOPORTE_OPCIONES).map(soporte => (
-                                            <option key={soporte} value={soporte}>{soporte}</option>
-                                        ))}
-                                    </select>
-                                    {formData.Soporte === "Otro" && (
-                                        <input type="text" name="SoporteCustom" value={formData.SoporteCustom} onChange={handleChange} className={`${inputClass} mt-2`} placeholder="Especifique el soporte..." required />
-                                    )}
-                                </div>
-                                <div className="lg:col-span-2 bg-gray-50/60 p-4 rounded-xl border border-gray-200">
-                                    <label className={labelClass}>Tipo de Requerimiento (Selecci&oacute;n M&uacute;ltiple)</label>
-                                    {!formData.Soporte ? (
-                                        <p className="text-xs text-gray-500 italic mt-4">Seleccione una categor&iacute;a de Soporte para cargar los tipos de requerimiento.</p>
-                                    ) : formData.Soporte === "Otro" ? (
-                                        <input type="text" value={formData.TipoRequerimiento[0] || ""} onChange={(e) => setFormData({...formData, TipoRequerimiento: e.target.value ? [e.target.value] : []})} className={`${inputClass} mt-3`} placeholder="Especifique el tipo de requerimiento..." required />
-                                    ) : (
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
-                                            {SOPORTE_OPCIONES[formData.Soporte].map(req => (
-                                                <label key={req} className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 cursor-pointer hover:border-cerrejon-orange transition-colors shadow-sm select-none">
-                                                    <input type="checkbox" checked={formData.TipoRequerimiento.includes(req)} onChange={() => handleTipoRequerimientoToggle(req)} className="w-4 h-4 accent-cerrejon-orange" />
-                                                    <span className="text-xs font-bold text-gray-700">{req}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* COMPONENTES & CONTACTO */}
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-5 bg-white/40 p-5 rounded-xl border border-white/50">
-                                <div className="md:col-span-2">
-                                    <label className={labelClass}>Nombre de Componente / Parte</label>
-                                    <input type="text" name="NombreComponente" value={formData.NombreComponente} onChange={handleChange} className={inputClass} placeholder="Ej. Cig&uuml;e&ntilde;al de Motor" required />
-                                </div>
-                                <div>
-                                    <label className={labelClass}>PN (Part Number)</label>
-                                    <input type="text" name="PN" value={formData.PN} onChange={handleChange} className={inputClass} placeholder="Ej. 104-599" required />
-                                </div>
-                                <div>
-                                    <label className={labelClass}>SC (StockCode)</label>
-                                    <input type="number" name="SC" value={formData.SC} onChange={handleChange} className={inputClass} placeholder="Ej. 12" />
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className={labelClass}>Nombre de quien solicita</label>
-                                    <input type="text" name="NombreContacto" value={formData.NombreContacto} onChange={handleChange} className={inputClass} placeholder="Ej. Juan P&eacute;rez" required />
-                                </div>
-                                <div className="md:col-span-2">
-                                    <label className={labelClass}>Celular</label>
-                                    <input type="number" name="Celular" value={formData.Celular} onChange={handleChange} className={inputClass} placeholder="Ej. 3101234567" required />
-                                </div>
-                            </div>
-
-                            {/* SUPERINTENDENCIA */}
-                            <div className="bg-white/40 p-5 rounded-xl border border-white/50">
-                                <div className="w-full md:w-1/2">
-                                    <label className={labelClass}>Superintendencia</label>
-                                    <select name="Superintendencia" value={formData.Superintendencia || ""} onChange={handleChange} className={inputClass} required>
-                                        {SUPERINTENDENCIAS.map(s => <option key={s} value={s}>{s || "-- Seleccione Superintendencia --"}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-
-                            {/* DETALLE & PRIORIDAD */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-white/40 p-5 rounded-xl border border-white/50">
-                                <div className="md:col-span-2">
-                                    <label className={labelClass}>Detalle del Requerimiento</label>
-                                    <textarea name="DetalleRequerimiento" value={formData.DetalleRequerimiento} onChange={handleChange} rows="4" className={`${inputClass} resize-none`} placeholder="Descripci&oacute;n detallada de la solicitud..." required></textarea>
-                                </div>
-                                <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-200 flex flex-col justify-between">
+                    {/* NAVEGACIÓN POR PESTAÑAS */}
+                    <div className="flex gap-2 bg-white/50 backdrop-blur-md p-1.5 rounded-2xl border border-white/40 shadow-lg">
+                        <button onClick={() => setActiveTab('cliente')} className={`flex-1 py-3 px-6 rounded-xl text-sm font-bold uppercase tracking-widest transition-all ${activeTab === 'cliente' ? 'bg-cerrejon-orange text-white shadow-lg' : 'text-gray-600 hover:bg-white/50'}`}>
+                            Cliente
+                        </button>
+                        {userAuth.isCoordinator && (
+                            <button onClick={() => setActiveTab('coordinador')} className={`flex-1 py-3 px-6 rounded-xl text-sm font-bold uppercase tracking-widest transition-all ${activeTab === 'coordinador' ? 'bg-cerrejon-orange text-white shadow-lg' : 'text-gray-600 hover:bg-white/50'}`}>
+                                Coordinador
+                            </button>
+                        )}
+                        <button onClick={() => setActiveTab('basedatos')} className={`flex-1 py-3 px-6 rounded-xl text-sm font-bold uppercase tracking-widest transition-all ${activeTab === 'basedatos' ? 'bg-cerrejon-orange text-white shadow-lg' : 'text-gray-600 hover:bg-white/50'}`}>
+                            Base de Datos
+                        </button>
+                    </div>
+ 
+                    {/* ============ TAB CLIENTE ============ */}
+                    {activeTab === 'cliente' && (
+                        <div className={`${glassCard} p-8 w-full`}>
+                            <h2 className="text-2xl font-extrabold text-gray-800 tracking-tight mb-6">Nuevo Requerimiento de Mantenimiento</h2>
+                            
+                            <form onSubmit={handleSubmit} className="space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-5 bg-gray-50/50 p-5 rounded-xl border border-gray-200/50">
                                     <div>
-                                        <label className={labelClass}>Prioridad</label>
-                                        <select name="Prioridad" value={formData.Prioridad} onChange={handleChange} className={inputClass} required>
-                                            {Object.keys(PRIORIDADES).map(prio => (
-                                                <option key={prio} value={prio}>{prio} -> {PRIORIDADES[prio]} {PRIORIDADES[prio] === 1 ? "d\u00EDa" : "d\u00EDas"}</option>
+                                        <label className={labelClass}>Fecha Registro</label>
+                                        <input type="date" name="Fecha" value={formData.Fecha} onChange={handleChange} className={inputClass} required />
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>OT (8 Caracteres)</label>
+                                        <input type="text" name="OT" maxLength={8} value={formData.OT} onChange={handleChange} className={inputClass} placeholder="Ej. A0104599" required />
+                                        {formData.OT && formData.OT.length !== 8 && (
+                                            <p className="text-[10px] text-red-500 mt-1 font-bold">Debe contener exactamente 8 caracteres ({formData.OT.length}/8)</p>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>Flota</label>
+                                        <select name="Flota" value={formData.Flota} onChange={handleChange} className={inputClass} required>
+                                            {FLOTAS.map(f => <option key={f} value={f}>{f}</option>)}
+                                        </select>
+                                        {formData.Flota === "Otra" && (
+                                            <input type="text" name="FlotaCustom" value={formData.FlotaCustom} onChange={handleChange} className={`${inputClass} mt-2`} placeholder="Especifique la flota..." required />
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>Cantidad</label>
+                                        <input type="number" name="Cantidad" min="1" step="1" value={formData.Cantidad} onChange={(e) => setFormData({ ...formData, Cantidad: parseInt(e.target.value) || 1 })} className={inputClass} required />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 bg-white/40 p-5 rounded-xl border border-white/50">
+                                    <div>
+                                        <label className={labelClass}>Soporte (Categor&iacute;a Principal)</label>
+                                        <select name="Soporte" value={formData.Soporte} onChange={handleChange} className={inputClass} required>
+                                            <option value="">-- Seleccione Soporte --</option>
+                                            {Object.keys(SOPORTE_OPCIONES).map(soporte => (
+                                                <option key={soporte} value={soporte}>{soporte}</option>
                                             ))}
                                         </select>
+                                        {formData.Soporte === "Otro" && (
+                                            <input type="text" name="SoporteCustom" value={formData.SoporteCustom} onChange={handleChange} className={`${inputClass} mt-2`} placeholder="Especifique el soporte..." required />
+                                        )}
                                     </div>
-                                    <div className="mt-3 p-2 bg-white/80 rounded-lg border border-cerrejon-orange/30 text-center">
-                                        <span className="block text-[10px] font-bold text-gray-500 uppercase">Tiempo de Soluci&oacute;n</span>
-                                        <span className="text-lg font-black text-cerrejon-orange">
-                                            {PRIORIDADES[formData.Prioridad]} {PRIORIDADES[formData.Prioridad] === 1 ? "D\u00EDa" : "D\u00EDas"}
-                                        </span>
+                                    <div className="lg:col-span-2 bg-gray-50/60 p-4 rounded-xl border border-gray-200">
+                                        <label className={labelClass}>Tipo de Requerimiento (Selecci&oacute;n M&uacute;ltiple)</label>
+                                        {!formData.Soporte ? (
+                                            <p className="text-xs text-gray-500 italic mt-4">Seleccione una categor&iacute;a de Soporte para cargar los tipos de requerimiento.</p>
+                                        ) : formData.Soporte === "Otro" ? (
+                                            <input type="text" value={formData.TipoRequerimiento[0] || ""} onChange={(e) => setFormData({...formData, TipoRequerimiento: e.target.value ? [e.target.value] : []})} className={`${inputClass} mt-3`} placeholder="Especifique el tipo de requerimiento..." required />
+                                        ) : (
+                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
+                                                {SOPORTE_OPCIONES[formData.Soporte].map(req => (
+                                                    <label key={req} className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 cursor-pointer hover:border-cerrejon-orange transition-colors shadow-sm select-none">
+                                                        <input type="checkbox" checked={formData.TipoRequerimiento.includes(req)} onChange={() => handleTipoRequerimientoToggle(req)} className="w-4 h-4 accent-cerrejon-orange" />
+                                                        <span className="text-xs font-bold text-gray-700">{req}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* COORDINACIÓN ENTREGA */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-white/40 p-5 rounded-xl border border-white/50">
-                                <div>
-                                    <label className={labelClass}>Coordinador de MMHH Quien Recibe</label>
-                                    <select name="CoordinadorRecibe" value={formData.CoordinadorRecibe} onChange={handleChange} className={inputClass} required>
-                                        {COORDINADORES_LISTA.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
-                                    {formData.CoordinadorRecibe === "Otro" && (
-                                        <input type="text" name="CoordinadorRecibeCustom" value={formData.CoordinadorRecibeCustom} onChange={handleChange} className={`${inputClass} mt-2`} placeholder="Especifique el coordinador..." required />
-                                    )}
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-5 bg-white/40 p-5 rounded-xl border border-white/50">
+                                    <div className="md:col-span-2">
+                                        <label className={labelClass}>Nombre de Componente / Parte</label>
+                                        <input type="text" name="NombreComponente" value={formData.NombreComponente} onChange={handleChange} className={inputClass} placeholder="Ej. Cig&uuml;e&ntilde;al de Motor" required />
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>PN (Part Number)</label>
+                                        <input type="text" name="PN" value={formData.PN} onChange={handleChange} className={inputClass} placeholder="Ej. 104-599" required />
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>SC (StockCode)</label>
+                                        <input type="number" name="SC" value={formData.SC} onChange={handleChange} className={inputClass} placeholder="Ej. 12" />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className={labelClass}>Nombre de quien solicita</label>
+                                        <input type="text" name="NombreContacto" value={formData.NombreContacto} onChange={handleChange} className={inputClass} placeholder="Ej. Juan P&eacute;rez" required />
+                                    </div>
+                                    <div className="md:col-span-2">
+                                        <label className={labelClass}>Celular</label>
+                                        <input type="number" name="Celular" value={formData.Celular} onChange={handleChange} className={inputClass} placeholder="Ej. 3101234567" required />
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className={labelClass}>&Aacute;rea de Entrega</label>
-                                    <select name="AreaEntrega" value={formData.AreaEntrega} onChange={handleChange} className={inputClass} required>
-                                        {AREAS_ENTREGA.map(a => <option key={a} value={a}>{a}</option>)}
-                                    </select>
-                                    {formData.AreaEntrega === "Otra" && (
-                                        <input type="text" name="AreaEntregaCustom" value={formData.AreaEntregaCustom} onChange={handleChange} className={`${inputClass} mt-2`} placeholder="Especifique el &aacute;rea..." required />
-                                    )}
+
+                                <div className="bg-white/40 p-5 rounded-xl border border-white/50">
+                                    <div className="w-full md:w-1/2">
+                                        <label className={labelClass}>Superintendencia</label>
+                                        <select name="Superintendencia" value={formData.Superintendencia || ""} onChange={handleChange} className={inputClass} required>
+                                            {SUPERINTENDENCIAS.map(s => <option key={s} value={s}>{s || "-- Seleccione Superintendencia --"}</option>)}
+                                        </select>
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* ARCHIVOS */}
-                            <div className="bg-white/40 p-5 rounded-xl border border-dashed border-gray-400">
-                                <label className={labelClass}>Documentos o Evidencias Fotogr&aacute;ficas (Opcional)</label>
-                                <input type="file" accept="image/*" multiple onChange={handleFileChange} ref={fileInputRef} className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-bold file:bg-cerrejon-orange file:text-white cursor-pointer" />
-                            </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-white/40 p-5 rounded-xl border border-white/50">
+                                    <div className="md:col-span-2">
+                                        <label className={labelClass}>Detalle del Requerimiento</label>
+                                        <textarea name="DetalleRequerimiento" value={formData.DetalleRequerimiento} onChange={handleChange} rows="4" className={`${inputClass} resize-none`} placeholder="Descripci&oacute;n detallada de la solicitud..." required></textarea>
+                                    </div>
+                                    <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-200 flex flex-col justify-between">
+                                        <div>
+                                            <label className={labelClass}>Prioridad</label>
+                                            <select name="Prioridad" value={formData.Prioridad} onChange={handleChange} className={inputClass} required>
+                                                {Object.keys(PRIORIDADES).map(prio => (
+                                                    <option key={prio} value={prio}>{prio} -{'>'} {PRIORIDADES[prio]} {PRIORIDADES[prio] === 1 ? "d\u00EDa" : "d\u00EDas"}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div className="mt-3 p-2 bg-white/80 rounded-lg border border-cerrejon-orange/30 text-center">
+                                            <span className="block text-[10px] font-bold text-gray-500 uppercase">Tiempo de Soluci&oacute;n</span>
+                                            <span className="text-lg font-black text-cerrejon-orange">
+                                                {PRIORIDADES[formData.Prioridad]} {PRIORIDADES[formData.Prioridad] === 1 ? "D\u00EDa" : "D\u00EDas"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
 
-                            <div className="flex justify-end pt-4 border-t border-white/30">
-                                <button type="submit" disabled={loading} className="px-10 py-3 bg-gradient-to-r from-cerrejon-orange to-red-600 text-white font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50">
-                                    {loading ? "Procesando Informaci\u00F3n..." : "Guardar Requerimiento"}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-white/40 p-5 rounded-xl border border-white/50">
+                                    <div>
+                                        <label className={labelClass}>Coordinador de MMHH Quien Recibe</label>
+                                        <select name="CoordinadorRecibe" value={formData.CoordinadorRecibe} onChange={handleChange} className={inputClass} required>
+                                            {COORDINADORES_LISTA.map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                        {formData.CoordinadorRecibe === "Otro" && (
+                                            <input type="text" name="CoordinadorRecibeCustom" value={formData.CoordinadorRecibeCustom} onChange={handleChange} className={`${inputClass} mt-2`} placeholder="Especifique el coordinador..." required />
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>&Aacute;rea de Entrega</label>
+                                        <select name="AreaEntrega" value={formData.AreaEntrega} onChange={handleChange} className={inputClass} required>
+                                            {AREAS_ENTREGA.map(a => <option key={a} value={a}>{a}</option>)}
+                                        </select>
+                                        {formData.AreaEntrega === "Otra" && (
+                                            <input type="text" name="AreaEntregaCustom" value={formData.AreaEntregaCustom} onChange={handleChange} className={`${inputClass} mt-2`} placeholder="Especifique el &aacute;rea..." required />
+                                        )}
+                                    </div>
+                                </div>
 
-                    {/* BASE DE DATOS - TABLA INFERIOR */}
-                    <div className={`${glassCard} flex flex-col w-full overflow-hidden`}>
-                        <div className="bg-gray-900/80 backdrop-blur-md px-6 py-5 flex justify-between items-center">
-                            <h2 className="text-lg font-bold text-white uppercase tracking-widest">Base de Datos MMHH_DB</h2>
+                                <div className="bg-white/40 p-5 rounded-xl border border-dashed border-gray-400">
+                                    <label className={labelClass}>Documentos o Evidencias Fotogr&aacute;ficas (Opcional)</label>
+                                    <input type="file" accept="image/*" multiple onChange={handleFileChange} ref={fileInputRef} className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-bold file:bg-cerrejon-orange file:text-white cursor-pointer" />
+                                </div>
+
+                                <div className="flex justify-end pt-4 border-t border-white/30">
+                                    <button type="submit" disabled={loading} className="px-10 py-3 bg-gradient-to-r from-cerrejon-orange to-red-600 text-white font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50">
+                                        {loading ? "Procesando Informaci\u00F3n..." : "Guardar Requerimiento"}
+                                    </button>
+                                </div>
+                            </form>
                         </div>
-                        <div className="overflow-x-auto p-4">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="border-b border-gray-400/50 text-xs uppercase font-extrabold text-gray-800">
-                                        <th className="p-4">Fecha</th>
-                                        <th className="p-4">OT</th>
-                                        <th className="p-4">Componente</th>
-                                        <th className="p-4">Soporte</th>
-                                        <th className="p-4 text-center">Estado Gesti&oacute;n</th>
-                                        <th className="p-4 text-center">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {items.length === 0 ? (
-                                        <tr><td colSpan="6" className="text-center p-8 font-medium text-gray-300">No hay registros cargados.</td></tr>
-                                    ) : (
-                                        items.map((item) => {
-                                            const d = item.parsedData;
-                                            if (d.Error) return (<tr key={item.Id}><td colSpan="6" className="p-4 text-red-500">ID {item.Id}: {d.Error}</td></tr>);
-                                            const gestionado = !!d.Coordinador;
+                    )}
 
-                                            return (
-                                                <tr key={item.Id} className="border-b border-gray-300/30 hover:bg-white/50 transition-colors align-middle">
-                                                    <td className="p-4 font-medium text-gray-800">{d.Fecha}</td>
-                                                    <td className="p-4 font-black text-cerrejon-orange">{d.OT}</td>
-                                                    <td className="p-4 font-bold text-gray-800">{d.NombreComponente} <span className="text-xs font-normal text-gray-500 block">{d.Flota} | PN: {d.PN || "N/A"}</span></td>
-                                                    <td className="p-4 font-bold text-gray-700">{d.Soporte}</td>
-                                                    <td className="p-4 text-center">
-                                                        {gestionado ? (
-                                                            <span className="px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-200">
-                                                                {d.Coordinador.Estado || "Gestionado"}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-400 border border-gray-200">
-                                                                Sin Asignar
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td className="p-4">
-                                                        <div className="flex items-center justify-center gap-2">
-                                                            {/* Botón Ver Detalle */}
-                                                            <button onClick={() => handleViewDetails(item)} title="Ver Detalle Completo" className="text-white bg-cerrejon-dark hover:bg-gray-700 p-2 rounded shadow transition-colors">
-                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg>
-                                                            </button>
+                    {/* ============ TAB COORDINADOR ============ */}
+                    {activeTab === 'coordinador' && userAuth.isCoordinator && (
+                        <div className={`${glassCard} flex flex-col w-full overflow-hidden`}>
+                            <div className="bg-gray-900/80 backdrop-blur-md px-6 py-5 flex flex-wrap justify-between items-center gap-4">
+                                <h2 className="text-lg font-bold text-white uppercase tracking-widest">Gesti&oacute;n de Solicitudes</h2>
+                                <div className="flex gap-2">
+                                    <button onClick={() => setCoordFilter('todos')} className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${coordFilter === 'todos' ? 'bg-cerrejon-orange text-white' : 'bg-white/20 text-white hover:bg-white/30'}`}>Todos</button>
+                                    <button onClick={() => setCoordFilter('en_proceso')} className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${coordFilter === 'en_proceso' ? 'bg-cerrejon-orange text-white' : 'bg-white/20 text-white hover:bg-white/30'}`}>En Proceso</button>
+                                    <button onClick={() => setCoordFilter('terminados')} className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${coordFilter === 'terminados' ? 'bg-cerrejon-orange text-white' : 'bg-white/20 text-white hover:bg-white/30'}`}>Terminados</button>
+                                </div>
+                            </div>
+                            <div className="overflow-x-auto p-4">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-gray-400/50 text-xs uppercase font-extrabold text-gray-800">
+                                            <th className="p-3">Fecha</th>
+                                            <th className="p-3">OT</th>
+                                            <th className="p-3">Componente</th>
+                                            <th className="p-3">Soporte</th>
+                                            <th className="p-3 text-center">Prioridad</th>
+                                            <th className="p-3 text-center">Estado</th>
+                                            <th className="p-3 text-center">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {getCoordFilteredItems().length === 0 ? (
+                                            <tr><td colSpan="7" className="text-center p-8 font-medium text-gray-400">No hay solicitudes que mostrar.</td></tr>
+                                        ) : (
+                                            getCoordFilteredItems().map((item) => {
+                                                const d = item.parsedData;
+                                                if (d.Error) return (<tr key={item.Id}><td colSpan="7" className="p-4 text-red-500">ID {item.Id}: {d.Error}</td></tr>);
+                                                const gestionado = !!d.Coordinador;
 
-                                                            {/* Botón Gestionar */}
-                                                            {userAuth.isCoordinator && (
-                                                                <button onClick={() => handleOpenManageModal(item)} title="Gestionar Requerimiento" className="text-white bg-cerrejon-orange hover:bg-red-600 p-2 rounded shadow transition-colors">
-                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                return (
+                                                    <tr key={item.Id} className="border-b border-gray-300/30 hover:bg-white/50 transition-colors align-middle">
+                                                        <td className="p-3 font-medium text-gray-800 text-xs">{d.Fecha}</td>
+                                                        <td className="p-3 font-black text-cerrejon-orange text-xs">{d.OT}</td>
+                                                        <td className="p-3 font-bold text-gray-800 text-xs">{d.NombreComponente} <span className="font-normal text-gray-500 block text-[10px]">{d.Flota}</span></td>
+                                                        <td className="p-3 font-bold text-gray-700 text-xs">{d.Soporte}</td>
+                                                        <td className="p-3 text-center">
+                                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-cerrejon-orange">{d.Prioridad}</span>
+                                                        </td>
+                                                        <td className="p-3 text-center">
+                                                            {gestionado ? (
+                                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${d.Coordinador.Estado === 'Terminado' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
+                                                                    {d.Coordinador.Estado || "Gestionado"}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-400 border border-gray-200">
+                                                                    Sin Asignar
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-3">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <button onClick={() => handleViewDetails(item)} title="Ver Detalle" className="text-white bg-cerrejon-dark hover:bg-gray-700 p-2 rounded shadow transition-colors">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg>
+                                                                </button>
+                                                                <button onClick={() => handleOpenManageModal(item)} title="Gestionar" className="text-white bg-cerrejon-orange hover:bg-red-600 p-2 rounded shadow transition-colors">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                                                     </svg>
                                                                 </button>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                    </div>
+                    )}
 
-                    {/* MODAL: REGISTRO/GESTIÓN DEL COORDINADOR */}
+                    {/* ============ TAB BASE DE DATOS ============ */}
+                    {activeTab === 'basedatos' && (
+                        <div className={`${glassCard} flex flex-col w-full overflow-hidden`}>
+                            <div className="bg-gray-900/80 backdrop-blur-md px-6 py-5 flex flex-wrap justify-between items-center gap-4">
+                                <h2 className="text-lg font-bold text-white uppercase tracking-widest">Base de Datos MMHH_DB</h2>
+                                <button onClick={handleDownloadCSV} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold rounded-lg uppercase tracking-wider transition-colors flex items-center gap-2">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                                    Descargar CSV
+                                </button>
+                            </div>
+                            
+                            {/* FILTROS */}
+                            <div className="p-4 bg-gray-50/80 border-b border-gray-200 flex flex-wrap gap-3 items-end">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Buscar</label>
+                                    <input type="text" value={dbFilter.search} onChange={(e) => setDbFilter({...dbFilter, search: e.target.value})} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white w-48 outline-none focus:border-cerrejon-orange focus:ring-1 focus:ring-cerrejon-orange/50" placeholder="OT, Componente, Flota..." />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Estado</label>
+                                    <select value={dbFilter.estado} onChange={(e) => setDbFilter({...dbFilter, estado: e.target.value})} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange">
+                                        <option value="todos">Todos</option>
+                                        <option value="sin_asignar">Sin Asignar</option>
+                                        <option value="gestionado">Gestionado</option>
+                                        {ESTADOS_COORDINADOR.map(e => <option key={e} value={e}>{e}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Desde</label>
+                                    <input type="date" value={dbFilter.fechaDesde} onChange={(e) => setDbFilter({...dbFilter, fechaDesde: e.target.value})} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange" />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Hasta</label>
+                                    <input type="date" value={dbFilter.fechaHasta} onChange={(e) => setDbFilter({...dbFilter, fechaHasta: e.target.value})} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange" />
+                                </div>
+                                <button onClick={() => setDbFilter({ search: '', estado: 'todos', fechaDesde: '', fechaHasta: '' })} className="px-4 py-2 text-xs font-bold bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 uppercase">Limpiar</button>
+                            </div>
+
+                            <div className="overflow-x-auto p-4">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="border-b border-gray-400/50 text-xs uppercase font-extrabold text-gray-800">
+                                            <th className="p-3">Fecha</th>
+                                            <th className="p-3">OT</th>
+                                            <th className="p-3">Componente</th>
+                                            <th className="p-3">Soporte</th>
+                                            <th className="p-3">Prioridad</th>
+                                            <th className="p-3 text-center">Estado</th>
+                                            <th className="p-3 text-center">Acciones</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {getFilteredItems().length === 0 ? (
+                                            <tr><td colSpan="7" className="text-center p-8 font-medium text-gray-400">No hay registros que coincidan con los filtros.</td></tr>
+                                        ) : (
+                                            getFilteredItems().map((item) => {
+                                                const d = item.parsedData;
+                                                if (d.Error) return (<tr key={item.Id}><td colSpan="7" className="p-4 text-red-500">ID {item.Id}: {d.Error}</td></tr>);
+                                                const gestionado = !!d.Coordinador;
+
+                                                return (
+                                                    <tr key={item.Id} className="border-b border-gray-300/30 hover:bg-white/50 transition-colors align-middle">
+                                                        <td className="p-3 font-medium text-gray-800 text-xs">{d.Fecha}</td>
+                                                        <td className="p-3 font-black text-cerrejon-orange text-xs">{d.OT}</td>
+                                                        <td className="p-3 font-bold text-gray-800 text-xs">{d.NombreComponente} <span className="font-normal text-gray-500 block text-[10px]">{d.Flota} | PN: {d.PN || "N/A"}</span></td>
+                                                        <td className="p-3 font-bold text-gray-700 text-xs">{d.Soporte}</td>
+                                                        <td className="p-3">
+                                                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-cerrejon-orange">{d.Prioridad}</span>
+                                                        </td>
+                                                        <td className="p-3 text-center">
+                                                            {gestionado ? (
+                                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${d.Coordinador.Estado === 'Terminado' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
+                                                                    {d.Coordinador.Estado || "Gestionado"}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-400 border border-gray-200">
+                                                                    Sin Asignar
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-3">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <button onClick={() => handleViewDetails(item)} title="Ver Detalle" className="text-white bg-cerrejon-dark hover:bg-gray-700 p-2 rounded shadow transition-colors">
+                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg>
+                                                                </button>
+                                                                {userAuth.isCoordinator && (
+                                                                    <button onClick={() => handleOpenManageModal(item)} title="Gestionar" className="text-white bg-cerrejon-orange hover:bg-red-600 p-2 rounded shadow transition-colors">
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                        </svg>
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* MODAL: GESTIÓN DEL COORDINADOR */}
                     {manageModalItem && (() => {
                         const d = manageModalItem.parsedData;
-                        const subprocessesDisponibles = PROCESOS_COORDINADOR[coordForm.ProcesoRequerido] || [];
 
                         return (
                             <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in p-4 overflow-y-auto">
@@ -774,41 +1005,64 @@
 
                                     <form onSubmit={handleSaveCoordResponse} className="p-6 space-y-6 overflow-y-auto max-h-[75vh]">
                                         
-                                        {/* SECCIÓN DINÁMICA: PROCESO Y SUBPROCESO */}
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-orange-50/50 p-5 rounded-xl border border-orange-200">
-                                            <div>
-                                                <label className={labelClass}>Proceso Requerido</label>
-                                                <select name="ProcesoRequerido" value={coordForm.ProcesoRequerido} onChange={handleCoordFormChange} className={inputClass} required>
-                                                    {Object.keys(PROCESOS_COORDINADOR).map(p => (
-                                                        <option key={p} value={p}>{p}</option>
-                                                    ))}
-                                                </select>
-                                                {coordForm.ProcesoRequerido === "Otro" && (
-                                                    <input type="text" name="ProcesoRequeridoCustom" value={coordForm.ProcesoRequeridoCustom} onChange={handleCoordFormChange} className={`${inputClass} mt-2`} placeholder="Especifique el proceso..." required />
-                                                )}
+                                        {/* PROCESOS MÚLTIPLES */}
+                                        <div className="bg-orange-50/50 p-5 rounded-xl border border-orange-200 space-y-4">
+                                            <div className="flex justify-between items-center">
+                                                <label className={labelClass + " mb-0"}>Procesos Requeridos</label>
+                                                <button type="button" onClick={handleAddProceso} className="px-3 py-1.5 bg-cerrejon-orange text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1">
+                                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                                                    Agregar Proceso
+                                                </button>
                                             </div>
-                                            <div>
-                                                <label className={labelClass}>Subproceso Requerido</label>
-                                                {subprocessesDisponibles.length === 0 ? (
-                                                    <input type="text" readOnly value="No requiere subproceso" className={`${inputClass} bg-gray-100 text-gray-400 cursor-not-allowed`} />
-                                                ) : subprocessesDisponibles.length === 1 && subprocessesDisponibles[0] === "Otro" ? (
-                                                    <input type="text" name="SubprocesoRequeridoCustom" value={coordForm.SubprocesoRequeridoCustom} onChange={handleCoordFormChange} className={inputClass} placeholder="Especifique el subproceso..." required />
-                                                ) : (
-                                                    <>
-                                                        <select name="SubprocesoRequerido" value={coordForm.SubprocesoRequerido} onChange={handleCoordFormChange} className={inputClass} required>
-                                                            {subprocessesDisponibles.map(s => (
-                                                                <option key={s} value={s}>{s}</option>
-                                                            ))}
-                                                        </select>
-                                                        {coordForm.SubprocesoRequerido === "Otro" && (
-                                                            <input type="text" name="SubprocesoRequeridoCustom" value={coordForm.SubprocesoRequeridoCustom} onChange={handleCoordFormChange} className={`${inputClass} mt-2`} placeholder="Especifique el subproceso..." required />
-                                                        )}
-                                                    </>
-                                                )}
-                                            </div>
+                                            {coordForm.Procesos.map((proc, idx) => {
+                                                const subsDisponibles = PROCESOS_COORDINADOR[proc.ProcesoRequerido] || [];
+                                                return (
+                                                    <div key={idx} className="p-4 bg-white/70 rounded-xl border border-gray-200">
+                                                        <div className="flex justify-between items-center mb-3">
+                                                            <span className="text-xs font-black text-gray-600 uppercase">Proceso #{idx + 1}</span>
+                                                            {coordForm.Procesos.length > 1 && (
+                                                                <button type="button" onClick={() => handleRemoveProceso(idx)} className="text-red-500 hover:text-red-700 text-xs font-bold">
+                                                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                            <div>
+                                                                <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Proceso Requerido</label>
+                                                                <select value={proc.ProcesoRequerido} onChange={(e) => handleProcesoChange(idx, "ProcesoRequerido", e.target.value)} className={`${inputClass} text-xs p-2`} required>
+                                                                    {Object.keys(PROCESOS_COORDINADOR).map(p => (
+                                                                        <option key={p} value={p}>{p}</option>
+                                                                    ))}
+                                                                </select>
+                                                                {proc.ProcesoRequerido === "Otro" && (
+                                                                    <input type="text" value={proc.ProcesoRequeridoCustom} onChange={(e) => handleProcesoChange(idx, "ProcesoRequeridoCustom", e.target.value)} className={`${inputClass} mt-2 text-xs p-2`} placeholder="Especifique el proceso..." required />
+                                                                )}
+                                                            </div>
+                                                            <div>
+                                                                <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Subproceso Requerido</label>
+                                                                {subsDisponibles.length === 0 ? (
+                                                                    <input type="text" readOnly value="No requiere subproceso" className={`${inputClass} bg-gray-100 text-gray-400 cursor-not-allowed text-xs p-2`} />
+                                                                ) : subsDisponibles.length === 1 && subsDisponibles[0] === "Otro" ? (
+                                                                    <input type="text" value={proc.SubprocesoRequeridoCustom} onChange={(e) => handleProcesoChange(idx, "SubprocesoRequeridoCustom", e.target.value)} className={`${inputClass} text-xs p-2`} placeholder="Especifique el subproceso..." required />
+                                                                ) : (
+                                                                    <>
+                                                                        <select value={proc.SubprocesoRequerido} onChange={(e) => handleProcesoChange(idx, "SubprocesoRequerido", e.target.value)} className={`${inputClass} text-xs p-2`} required>
+                                                                            {subsDisponibles.map(s => (
+                                                                                <option key={s} value={s}>{s}</option>
+                                                                            ))}
+                                                                        </select>
+                                                                        {proc.SubprocesoRequerido === "Otro" && (
+                                                                            <input type="text" value={proc.SubprocesoRequeridoCustom} onChange={(e) => handleProcesoChange(idx, "SubprocesoRequeridoCustom", e.target.value)} className={`${inputClass} mt-2 text-xs p-2`} placeholder="Especifique el subproceso..." required />
+                                                                        )}
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
 
-                                        {/* DETALLES DE COMPLEMENTO Y EQUIPO */}
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 bg-white/40">
                                             <div className="md:col-span-2">
                                                 <label className={labelClass}>Complemento MMHH</label>
@@ -824,7 +1078,6 @@
                                             </div>
                                         </div>
 
-                                        {/* ESTADOS Y TIEMPOS */}
                                         <div className="grid grid-cols-1 md:grid-cols-4 gap-5 bg-white/40">
                                             <div>
                                                 <label className={labelClass}>Estado</label>
@@ -851,13 +1104,11 @@
                                             </div>
                                         </div>
 
-                                        {/* SUBIDA DE ARCHIVOS DEL COORDINADOR */}
                                         <div className="bg-white/40 p-5 rounded-xl border border-dashed border-gray-400">
                                             <label className={labelClass}>Documentos o Evidencias del Coordinador (Opcional)</label>
                                             <input type="file" accept="image/*" multiple onChange={handleCoordFileChange} ref={coordFileInputRef} className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-bold file:bg-cerrejon-orange file:text-white cursor-pointer" />
                                         </div>
 
-                                        {/* FIRMA AUTOMÁTICA DEL COORDINADOR */}
                                         <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 flex justify-between items-center text-xs">
                                             <span className="text-gray-500 font-bold uppercase">Registrado por:</span>
                                             <span className="font-extrabold text-cerrejon-dark">{userAuth.name} ({userAuth.email})</span>
@@ -877,7 +1128,7 @@
                         );
                     })()}
 
-                    {/* MODAL: VER DETALLE COMPLETO (CLIENTE Y COORDINADOR APARTE) */}
+                    {/* MODAL: VER DETALLE COMPLETO */}
                     {viewModalItem && (() => {
                         const d = viewModalItem.parsedData;
                         const allImages = d.ImagenesBase64 || [];
@@ -897,7 +1148,6 @@
                                         </button>
                                     </div>
 
-                                    {/* CONTENIDO EN DOS COLUMNAS INDEPENDIENTES */}
                                     <div className="p-6 overflow-y-auto max-h-[75vh]">
                                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                             
@@ -935,7 +1185,13 @@
                                                     <div><span className="block text-[10px] text-gray-400 uppercase font-bold">Recepci&oacute;n</span><span className="font-medium text-gray-700 block">{d.CoordinadorRecibe}</span><span className="text-gray-500 font-medium">{d.AreaEntrega}</span></div>
                                                 </div>
 
-                                                {/* EVIDENCIAS CLIENTE */}
+                                                {d.Superintendencia && (
+                                                    <div className="text-xs pt-1">
+                                                        <span className="block text-[10px] text-gray-400 uppercase font-bold mb-1">Superintendencia</span>
+                                                        <span className="font-bold text-gray-800 block">{d.Superintendencia}</span>
+                                                    </div>
+                                                )}
+
                                                 <div className="border-t border-gray-200 pt-4 flex justify-between items-center">
                                                     <span className="text-[10px] font-bold text-gray-400 uppercase">Evidencias de Solicitud</span>
                                                     {hasImages ? (
@@ -959,11 +1215,19 @@
                                                         <div className="grid grid-cols-2 gap-3 text-xs">
                                                             <div><span className="block text-[10px] text-orange-400 uppercase font-bold">Estado</span><span className="font-bold text-gray-800">{c.Estado}</span></div>
                                                             <div><span className="block text-[10px] text-orange-400 uppercase font-bold">Fecha Estimada</span><span className="font-bold text-gray-800">{c.FechaEstimado}</span></div>
-                                                            <div><span className="block text-[10px] text-orange-400 uppercase font-bold">Proceso</span><span className="font-bold text-gray-800">{c.ProcesoRequerido}</span></div>
-                                                            <div><span className="block text-[10px] text-orange-400 uppercase font-bold">Subproceso</span><span className="font-bold text-gray-800">{c.SubprocesoRequerido || "N/A"}</span></div>
                                                             <div><span className="block text-[10px] text-orange-400 uppercase font-bold">Equipo</span><span className="font-bold text-gray-800">{c.Equipo}</span></div>
                                                             <div><span className="block text-[10px] text-orange-400 uppercase font-bold">H/H Estimadas</span><span className="font-bold text-gray-800">{c.EstimadoHorasHombre} H/H</span></div>
-                                                            <div className="col-span-2"><span className="block text-[10px] text-orange-400 uppercase font-bold">Notificaci\u00F3n Cliente</span><span className="font-bold text-gray-800">{c.NotificacionCliente}</span></div>
+                                                            <div className="col-span-2"><span className="block text-[10px] text-orange-400 uppercase font-bold">Notificaci&oacute;n Cliente</span><span className="font-bold text-gray-800">{c.NotificacionCliente}</span></div>
+                                                        </div>
+
+                                                        <div className="text-xs pt-1">
+                                                            <span className="block text-[10px] text-orange-400 uppercase font-bold mb-1">Procesos</span>
+                                                            {(c.Procesos || [{ ProcesoRequerido: c.ProcesoRequerido || "N/A", SubprocesoRequerido: c.SubprocesoRequerido }]).map((p, idx) => (
+                                                                <div key={idx} className="p-2 bg-white rounded border border-orange-100 mb-1">
+                                                                    <span className="font-bold text-gray-800">{p.ProcesoRequerido}</span>
+                                                                    {p.SubprocesoRequerido && <span className="text-gray-500"> &rarr; {p.SubprocesoRequerido}</span>}
+                                                                </div>
+                                                            ))}
                                                         </div>
                                                         
                                                         <div className="text-xs pt-1">
@@ -974,12 +1238,11 @@
                                                         <div className="text-[10px] text-gray-500 pt-2 border-t border-orange-200/50">
                                                             <div>Coordinador: <strong>{c.Nombre}</strong></div>
                                                             <div>Email: {c.Email}</div>
-                                                            <div>Fecha de Acci\u00F3n: {c.FechaDiligenciado}</div>
+                                                            <div>Fecha de Acci&oacute;n: {c.FechaDiligenciado}</div>
                                                         </div>
 
-                                                        {/* EVIDENCIAS COORDINADOR */}
                                                         <div className="border-t border-orange-200/50 pt-4 flex justify-between items-center">
-                                                            <span className="text-[10px] font-bold text-orange-400 uppercase">Evidencias de Coordinaci\u00F3n</span>
+                                                            <span className="text-[10px] font-bold text-orange-400 uppercase">Evidencias de Coordinaci&oacute;n</span>
                                                             {c.ImagenesBase64 && c.ImagenesBase64.length > 0 ? (
                                                                 <button onClick={() => { setModalImages(c.ImagenesBase64); setActiveImageIndex(0); }} className="bg-cerrejon-orange text-white font-bold text-xs px-3 py-1.5 rounded hover:bg-orange-600 transition-colors flex items-center gap-1.5">
                                                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" /></svg>
