@@ -127,8 +127,10 @@
         const initialFormState = {
             Fecha: getCurrentDate(),
             Soporte: "",
+            SoporteCustom: "",
             TipoRequerimiento: [], 
             Flota: "793D",
+            FlotaCustom: "",
             DetalleRequerimiento: "",
             NombreComponente: "",
             PN: "",
@@ -139,14 +141,18 @@
             Prioridad: "P0",
             Cantidad: 1,
             CoordinadorRecibe: "Jesus Padilla",
+            CoordinadorRecibeCustom: "",
             AreaEntrega: "Mesa Amarilla",
+            AreaEntregaCustom: "",
             Superintendencia: "",
             ImagenesBase64: []
         };
 
         const initialCoordinatorFormState = {
             ProcesoRequerido: "Ensayo No destructivo",
+            ProcesoRequeridoCustom: "",
             SubprocesoRequerido: "",
+            SubprocesoRequeridoCustom: "",
             ComplementoMMHH: "",
             Equipo: "Bru\u00F1idora",
             Estado: "En espera",
@@ -285,7 +291,13 @@
                 const { name, value } = e.target;
                 setFormData(prev => {
                     const updated = { ...prev, [name]: value };
-                    if (name === "Soporte") updated.TipoRequerimiento = [];
+                    if (name === "Soporte") {
+                        updated.TipoRequerimiento = [];
+                        updated.SoporteCustom = "";
+                    }
+                    if (name === "Flota" && value !== "Otra") updated.FlotaCustom = "";
+                    if (name === "CoordinadorRecibe" && value !== "Otro") updated.CoordinadorRecibeCustom = "";
+                    if (name === "AreaEntrega" && value !== "Otra") updated.AreaEntregaCustom = "";
                     return updated;
                 });
             };
@@ -324,6 +336,10 @@
                     const entityType = await getEntityType(SP_CONFIG.listTitle);
                     
                     let finalDataObj = { ...formData };
+                    if (formData.Flota === "Otra" && formData.FlotaCustom) finalDataObj.Flota = formData.FlotaCustom;
+                    if (formData.Soporte === "Otro" && formData.SoporteCustom) finalDataObj.Soporte = formData.SoporteCustom;
+                    if (formData.CoordinadorRecibe === "Otro" && formData.CoordinadorRecibeCustom) finalDataObj.CoordinadorRecibe = formData.CoordinadorRecibeCustom;
+                    if (formData.AreaEntrega === "Otra" && formData.AreaEntregaCustom) finalDataObj.AreaEntrega = formData.AreaEntregaCustom;
                     let base64Images = [];
                     for (let file of evidenceFiles) {
                         const b64 = await compressImage(file);
@@ -365,7 +381,9 @@
                     const c = item.parsedData.Coordinador;
                     setCoordForm({
                         ProcesoRequerido: c.ProcesoRequerido || "Ensayo No destructivo",
+                        ProcesoRequeridoCustom: c.ProcesoRequeridoCustom || "",
                         SubprocesoRequerido: c.SubprocesoRequerido || "",
+                        SubprocesoRequeridoCustom: c.SubprocesoRequeridoCustom || "",
                         ComplementoMMHH: c.ComplementoMMHH || "",
                         Equipo: c.Equipo || "Bru\u00F1idora",
                         Estado: c.Estado || "En espera",
@@ -387,6 +405,8 @@
                     if (name === "ProcesoRequerido") {
                         const subs = PROCESOS_COORDINADOR[value] || [];
                         updated.SubprocesoRequerido = subs.length > 0 ? subs[0] : "";
+                        updated.ProcesoRequeridoCustom = "";
+                        updated.SubprocesoRequeridoCustom = "";
                     }
                     return updated;
                 });
@@ -406,13 +426,17 @@
                         coordBase64Images.push({ name: file.name, data: b64 });
                     }
 
+                    let finalCoordForm = { ...coordForm };
+                    if (coordForm.ProcesoRequerido === "Otro" && coordForm.ProcesoRequeridoCustom) finalCoordForm.ProcesoRequerido = coordForm.ProcesoRequeridoCustom;
+                    if (coordForm.SubprocesoRequerido === "Otro" && coordForm.SubprocesoRequeridoCustom) finalCoordForm.SubprocesoRequerido = coordForm.SubprocesoRequeridoCustom;
+
                     const updatedParsedData = {
                         ...manageModalItem.parsedData,
                         Coordinador: {
                             Email: userAuth.email,
                             Nombre: userAuth.name,
                             FechaDiligenciado: getCurrentDate(),
-                            ...coordForm,
+                            ...finalCoordForm,
                             ImagenesBase64: coordBase64Images
                         }
                     };
@@ -523,6 +547,9 @@
                                     <select name="Flota" value={formData.Flota} onChange={handleChange} className={inputClass} required>
                                         {FLOTAS.map(f => <option key={f} value={f}>{f}</option>)}
                                     </select>
+                                    {formData.Flota === "Otra" && (
+                                        <input type="text" name="FlotaCustom" value={formData.FlotaCustom} onChange={handleChange} className={`${inputClass} mt-2`} placeholder="Especifique la flota..." required />
+                                    )}
                                 </div>
                                 <div>
                                     <label className={labelClass}>Cantidad</label>
@@ -540,11 +567,16 @@
                                             <option key={soporte} value={soporte}>{soporte}</option>
                                         ))}
                                     </select>
+                                    {formData.Soporte === "Otro" && (
+                                        <input type="text" name="SoporteCustom" value={formData.SoporteCustom} onChange={handleChange} className={`${inputClass} mt-2`} placeholder="Especifique el soporte..." required />
+                                    )}
                                 </div>
                                 <div className="lg:col-span-2 bg-gray-50/60 p-4 rounded-xl border border-gray-200">
                                     <label className={labelClass}>Tipo de Requerimiento (Selecci&oacute;n M&uacute;ltiple)</label>
                                     {!formData.Soporte ? (
                                         <p className="text-xs text-gray-500 italic mt-4">Seleccione una categor&iacute;a de Soporte para cargar los tipos de requerimiento.</p>
+                                    ) : formData.Soporte === "Otro" ? (
+                                        <input type="text" value={formData.TipoRequerimiento[0] || ""} onChange={(e) => setFormData({...formData, TipoRequerimiento: e.target.value ? [e.target.value] : []})} className={`${inputClass} mt-3`} placeholder="Especifique el tipo de requerimiento..." required />
                                     ) : (
                                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
                                             {SOPORTE_OPCIONES[formData.Soporte].map(req => (
@@ -598,38 +630,40 @@
                                     <label className={labelClass}>Detalle del Requerimiento</label>
                                     <textarea name="DetalleRequerimiento" value={formData.DetalleRequerimiento} onChange={handleChange} rows="4" className={`${inputClass} resize-none`} placeholder="Descripci&oacute;n detallada de la solicitud..." required></textarea>
                                 </div>
-                                <div className="flex flex-col justify-between bg-orange-50/50 p-4 rounded-xl border border-orange-200">
+                                <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-200 flex flex-col justify-between">
                                     <div>
                                         <label className={labelClass}>Prioridad</label>
-                                        <select name="Prioridad" value={formData.Prioridad} onChange={handleChange} className={inputClass} required>
-                                            {Object.keys(PRIORIDADES).map(prio => (
-                                                <option key={prio} value={prio}>{prio}</option>
-                                            ))}
-                                        </select>
+                                        <div className="flex gap-2 items-start">
+                                            <select name="Prioridad" value={formData.Prioridad} onChange={handleChange} className={`${inputClass} flex-1`} required>
+                                                {Object.keys(PRIORIDADES).map(prio => (
+                                                    <option key={prio} value={prio}>{prio}</option>
+                                                ))}
+                                            </select>
+                                            <div className="text-[9px] flex-shrink-0 bg-white/70 rounded-lg border border-gray-200 overflow-hidden">
+                                                <table className="border-collapse">
+                                                    <thead>
+                                                        <tr className="bg-gray-100">
+                                                            <th className="px-1.5 py-0.5 text-left font-bold text-gray-500">P</th>
+                                                            <th className="px-1.5 py-0.5 text-right font-bold text-gray-500">D&iacute;as</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {Object.entries(PRIORIDADES).map(([prio, dias]) => (
+                                                            <tr key={prio} className={`border-t border-gray-200/50 ${formData.Prioridad === prio ? 'bg-cerrejon-orange/10 font-bold' : ''}`}>
+                                                                <td className="px-1.5 py-0.5 text-left text-gray-700">{prio}</td>
+                                                                <td className="px-1.5 py-0.5 text-right text-gray-700">{dias}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="mt-4 p-4 bg-white/80 rounded-lg border border-cerrejon-orange/30 text-center">
+                                    <div className="mt-3 p-2 bg-white/80 rounded-lg border border-cerrejon-orange/30 text-center">
                                         <span className="block text-[10px] font-bold text-gray-500 uppercase">Tiempo de Soluci&oacute;n</span>
-                                        <span className="text-xl font-black text-cerrejon-orange">
+                                        <span className="text-lg font-black text-cerrejon-orange">
                                             {PRIORIDADES[formData.Prioridad]} {PRIORIDADES[formData.Prioridad] === 1 ? "D\u00EDa" : "D\u00EDas"}
                                         </span>
-                                    </div>
-                                    <div className="mt-3 text-[10px]">
-                                        <table className="w-full border-collapse">
-                                            <thead>
-                                                <tr className="border-b border-gray-300">
-                                                    <th className="py-1 text-left font-bold text-gray-500 uppercase">Prioridad</th>
-                                                    <th className="py-1 text-right font-bold text-gray-500 uppercase">D&iacute;as</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {Object.entries(PRIORIDADES).map(([prio, dias]) => (
-                                                    <tr key={prio} className={`border-b border-gray-200/50 ${formData.Prioridad === prio ? 'bg-cerrejon-orange/10 font-bold' : ''}`}>
-                                                        <td className="py-0.5 text-left text-gray-700">{prio}</td>
-                                                        <td className="py-0.5 text-right text-gray-700">{dias}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
                                     </div>
                                 </div>
                             </div>
@@ -641,12 +675,18 @@
                                     <select name="CoordinadorRecibe" value={formData.CoordinadorRecibe} onChange={handleChange} className={inputClass} required>
                                         {COORDINADORES_LISTA.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
+                                    {formData.CoordinadorRecibe === "Otro" && (
+                                        <input type="text" name="CoordinadorRecibeCustom" value={formData.CoordinadorRecibeCustom} onChange={handleChange} className={`${inputClass} mt-2`} placeholder="Especifique el coordinador..." required />
+                                    )}
                                 </div>
                                 <div>
                                     <label className={labelClass}>&Aacute;rea de Entrega</label>
                                     <select name="AreaEntrega" value={formData.AreaEntrega} onChange={handleChange} className={inputClass} required>
                                         {AREAS_ENTREGA.map(a => <option key={a} value={a}>{a}</option>)}
                                     </select>
+                                    {formData.AreaEntrega === "Otra" && (
+                                        <input type="text" name="AreaEntregaCustom" value={formData.AreaEntregaCustom} onChange={handleChange} className={`${inputClass} mt-2`} placeholder="Especifique el &aacute;rea..." required />
+                                    )}
                                 </div>
                             </div>
 
@@ -763,17 +803,27 @@
                                                         <option key={p} value={p}>{p}</option>
                                                     ))}
                                                 </select>
+                                                {coordForm.ProcesoRequerido === "Otro" && (
+                                                    <input type="text" name="ProcesoRequeridoCustom" value={coordForm.ProcesoRequeridoCustom} onChange={handleCoordFormChange} className={`${inputClass} mt-2`} placeholder="Especifique el proceso..." required />
+                                                )}
                                             </div>
                                             <div>
                                                 <label className={labelClass}>Subproceso Requerido</label>
                                                 {subprocessesDisponibles.length === 0 ? (
                                                     <input type="text" readOnly value="No requiere subproceso" className={`${inputClass} bg-gray-100 text-gray-400 cursor-not-allowed`} />
+                                                ) : subprocessesDisponibles.length === 1 && subprocessesDisponibles[0] === "Otro" ? (
+                                                    <input type="text" name="SubprocesoRequeridoCustom" value={coordForm.SubprocesoRequeridoCustom} onChange={handleCoordFormChange} className={inputClass} placeholder="Especifique el subproceso..." required />
                                                 ) : (
-                                                    <select name="SubprocesoRequerido" value={coordForm.SubprocesoRequerido} onChange={handleCoordFormChange} className={inputClass} required>
-                                                        {subprocessesDisponibles.map(s => (
-                                                            <option key={s} value={s}>{s}</option>
-                                                        ))}
-                                                    </select>
+                                                    <>
+                                                        <select name="SubprocesoRequerido" value={coordForm.SubprocesoRequerido} onChange={handleCoordFormChange} className={inputClass} required>
+                                                            {subprocessesDisponibles.map(s => (
+                                                                <option key={s} value={s}>{s}</option>
+                                                            ))}
+                                                        </select>
+                                                        {coordForm.SubprocesoRequerido === "Otro" && (
+                                                            <input type="text" name="SubprocesoRequeridoCustom" value={coordForm.SubprocesoRequeridoCustom} onChange={handleCoordFormChange} className={`${inputClass} mt-2`} placeholder="Especifique el subproceso..." required />
+                                                        )}
+                                                    </>
                                                 )}
                                             </div>
                                         </div>
