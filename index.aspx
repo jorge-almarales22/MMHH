@@ -80,11 +80,11 @@
             "Torno peque\u00F1o", "Torno Pinacho CNC", "Torno Pinacho Convencional", "Torno Ticino 330", 
             "Torno Ticino 520", "Torno Torrent", "Unidad Hidr\u00E1ulica 1", "Unidad Hidr\u00E1ulica 2", 
             "Unidad Hidr\u00E1ulica 3", "Unidad Hidr\u00E1ulica 4", "Unidad Hidr\u00E1ulica 5", "Unidad Hidr\u00E1ulica 6", 
-            "Unidad Hidr\u00E1ulica 7"
+            "Unidad Hidr\u00E1ulica 7", "No Requiere", "Equipo END"
         ];
 
         const ESTADOS_COORDINADOR = [
-            "En espera", "Premaquinado", "Mecanizado", "Relleno", "Terminado"
+            "No gestionado", "Disponible en Maquinas y Herramientas", "Entregado"
         ];
 
         const SOPORTE_OPCIONES = {
@@ -124,11 +124,25 @@
 
         const getCurrentDate = () => new Date().toISOString().split('T')[0];
 
+        const generateSolicitudID = () => {
+            const now = new Date();
+            const y = now.getFullYear().toString().slice(-2);
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            const h = String(now.getHours()).padStart(2, '0');
+            const mi = String(now.getMinutes()).padStart(2, '0');
+            const s = String(now.getSeconds()).padStart(2, '0');
+            const rnd = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
+            return `MMHH-${y}${m}${d}-${h}${mi}${s}-${rnd}`;
+        };
+
         const initialFormState = {
+            SolicitudID: "",
             Fecha: getCurrentDate(),
             Soporte: "",
             SoporteCustom: "",
-            TipoRequerimiento: [], 
+            TipoRequerimiento: [],
+            TipoRequerimientoCustom: {},
             Flota: "793D",
             FlotaCustom: "",
             DetalleRequerimiento: "",
@@ -152,10 +166,12 @@
             Procesos: [{ ProcesoRequerido: "Ensayo No destructivo", ProcesoRequeridoCustom: "", SubprocesoRequerido: "", SubprocesoRequeridoCustom: "" }],
             ComplementoMMHH: "",
             Equipo: "Bru\u00F1idora",
-            Estado: "En espera",
+            Estado: "No gestionado",
             EstimadoHorasHombre: 0,
             FechaEstimado: getCurrentDate(),
-            NotificacionCliente: "No"
+            NotificacionCliente: "No",
+            Demoras: [],
+            Comentario: ""
         };
 
         const compressImage = (file) => new Promise((resolve, reject) => {
@@ -192,8 +208,8 @@
             const [loading, setLoading] = useState(false);
             const [error, setError] = useState(null);
             const [activeTab, setActiveTab] = useState('cliente');
-            const [dbFilter, setDbFilter] = useState({ search: '', estado: 'todos', fechaDesde: '', fechaHasta: '' });
-            const [coordFilter, setCoordFilter] = useState('todos');
+            const [dbFilter, setDbFilter] = useState({ search: '', estado: 'todos', fechaDesde: '', fechaHasta: '', prioridad: '', superintendencia: '', flota: '', coordinadorRecibe: '', areaEntrega: '' });
+            const [coordFilter, setCoordFilter] = useState({ state: 'todos', search: '', superintendencia: '', prioridad: '', flota: '', coordinadorRecibe: '', areaEntrega: '', fechaDesde: '', fechaHasta: '' });
 
             const [userAuth, setUserAuth] = useState({
                 authenticated: false,
@@ -291,6 +307,7 @@
                     const updated = { ...prev, [name]: value };
                     if (name === "Soporte") {
                         updated.TipoRequerimiento = [];
+                        updated.TipoRequerimientoCustom = {};
                         updated.SoporteCustom = "";
                     }
                     if (name === "Flota" && value !== "Otra") updated.FlotaCustom = "";
@@ -302,12 +319,22 @@
 
             const handleTipoRequerimientoToggle = (req) => {
                 let updated = [...formData.TipoRequerimiento];
+                let updatedCustom = { ...formData.TipoRequerimientoCustom };
                 if (updated.includes(req)) {
                     updated = updated.filter(r => r !== req);
+                    delete updatedCustom[req];
                 } else {
                     updated.push(req);
+                    if (req === "Otro") updatedCustom[req] = "";
                 }
-                setFormData({ ...formData, TipoRequerimiento: updated });
+                setFormData({ ...formData, TipoRequerimiento: updated, TipoRequerimientoCustom: updatedCustom });
+            };
+
+            const handleTipoReqCustomChange = (req, value) => {
+                setFormData(prev => ({
+                    ...prev,
+                    TipoRequerimientoCustom: { ...prev.TipoRequerimientoCustom, [req]: value }
+                }));
             };
 
             const handleFileChange = (e) => {
@@ -333,7 +360,16 @@
                     const digest = await getRequestDigest();
                     const entityType = await getEntityType(SP_CONFIG.listTitle);
                     
-                    let finalDataObj = { ...formData };
+                    const solicitudID = generateSolicitudID();
+
+                    let finalTipoRequerimiento = formData.TipoRequerimiento.map(req => {
+                        if (req === "Otro" && formData.TipoRequerimientoCustom["Otro"]) {
+                            return formData.TipoRequerimientoCustom["Otro"];
+                        }
+                        return req;
+                    });
+
+                    let finalDataObj = { ...formData, SolicitudID: solicitudID, TipoRequerimiento: finalTipoRequerimiento };
                     if (formData.Flota === "Otra" && formData.FlotaCustom) finalDataObj.Flota = formData.FlotaCustom;
                     if (formData.Soporte === "Otro" && formData.SoporteCustom) finalDataObj.Soporte = formData.SoporteCustom;
                     if (formData.CoordinadorRecibe === "Otro" && formData.CoordinadorRecibeCustom) finalDataObj.CoordinadorRecibe = formData.CoordinadorRecibeCustom;
@@ -367,7 +403,7 @@
                     setEvidenceFiles([]);
                     if(fileInputRef.current) fileInputRef.current.value = "";
                     await fetchItems();
-                    alert("Solicitud guardada.");
+                    alert("Solicitud guardada con ID: " + solicitudID);
                 } catch (err) { setError(err.message); } 
                 finally { setLoading(false); }
             };
@@ -380,10 +416,12 @@
                         Procesos: (c.Procesos && c.Procesos.length > 0) ? c.Procesos : [{ ProcesoRequerido: c.ProcesoRequerido || "Ensayo No destructivo", ProcesoRequeridoCustom: c.ProcesoRequeridoCustom || "", SubprocesoRequerido: c.SubprocesoRequerido || "", SubprocesoRequeridoCustom: c.SubprocesoRequeridoCustom || "" }],
                         ComplementoMMHH: c.ComplementoMMHH || "",
                         Equipo: c.Equipo || "Bru\u00F1idora",
-                        Estado: c.Estado || "En espera",
+                        Estado: c.Estado || "No gestionado",
                         EstimadoHorasHombre: c.EstimadoHorasHombre || 0,
                         FechaEstimado: c.FechaEstimado || getCurrentDate(),
-                        NotificacionCliente: c.NotificacionCliente || "No"
+                        NotificacionCliente: c.NotificacionCliente || "No",
+                        Demoras: c.Demoras || [],
+                        Comentario: c.Comentario || ""
                     });
                 } else {
                     setCoordForm(initialCoordinatorFormState);
@@ -407,6 +445,28 @@
                 }));
             };
 
+            const handleAddDemora = () => {
+                setCoordForm(prev => ({
+                    ...prev,
+                    Demoras: [...prev.Demoras, { Descripcion: "", Fecha: getCurrentDate() }]
+                }));
+            };
+
+            const handleRemoveDemora = (index) => {
+                setCoordForm(prev => ({
+                    ...prev,
+                    Demoras: prev.Demoras.filter((_, i) => i !== index)
+                }));
+            };
+
+            const handleDemoraChange = (index, name, value) => {
+                setCoordForm(prev => {
+                    const newDemoras = [...prev.Demoras];
+                    newDemoras[index] = { ...newDemoras[index], [name]: value };
+                    return { ...prev, Demoras: newDemoras };
+                });
+            };
+
             const handleProcesoChange = (index, name, value) => {
                 setCoordForm(prev => {
                     const newProcesos = [...prev.Procesos];
@@ -428,6 +488,9 @@
 
             const handleSaveCoordResponse = async (e) => {
                 e.preventDefault();
+                if (coordForm.Estado === "Entregado" && !coordForm.Comentario.trim()) {
+                    return alert("Debe dejar un comentario obligatorio cuando la solicitud pasa a estado 'Entregado'.");
+                }
                 setLoading(true); setError(null);
                 try {
                     const digest = await getRequestDigest();
@@ -459,6 +522,8 @@
                             EstimadoHorasHombre: coordForm.EstimadoHorasHombre,
                             FechaEstimado: coordForm.FechaEstimado,
                             NotificacionCliente: coordForm.NotificacionCliente,
+                            Demoras: coordForm.Demoras,
+                            Comentario: coordForm.Comentario,
                             ImagenesBase64: coordBase64Images
                         }
                     };
@@ -498,18 +563,20 @@
 
             const handleDownloadCSV = () => {
                 const filtered = getFilteredItems();
-                const headers = ["Fecha","OT","Flota","Componente","PN","SC","Soporte","Tipo Requerimiento","Prioridad","Superintendencia","Contacto","Celular","Coordinador Recibe","Area Entrega","Estado Gestion","Procesos","Equipo","H/H Estimadas","Fecha Estimado","Complemento MMHH","Notificacion Cliente"];
+                const headers = ["ID","Fecha","OT","Flota","Componente","PN","SC","Soporte","Tipo Requerimiento","Prioridad","Superintendencia","Contacto","Celular","Coordinador Recibe","Area Entrega","Estado Gestion","Procesos","Equipo","H/H Estimadas","Fecha Estimado","Complemento MMHH","Notificacion Cliente","Demoras","Comentario"];
                 const rows = filtered.map(item => {
                     const d = item.parsedData;
                     if (d.Error) return null;
                     const c = d.Coordinador;
                     const procesos = c && c.Procesos ? c.Procesos.map(p => `${p.ProcesoRequerido}${p.SubprocesoRequerido ? ": " + p.SubprocesoRequerido : ""}`).join(" | ") : (c ? `${c.ProcesoRequerido || ""}${c.SubprocesoRequerido ? ": " + c.SubprocesoRequerido : ""}` : "");
+                    const demoras = c && c.Demoras ? c.Demoras.map(dem => `${dem.Descripcion || ""} (${dem.Fecha || ""})`).join(" | ") : "";
                     return [
-                        d.Fecha || "", d.OT || "", d.Flota || "", d.NombreComponente || "", d.PN || "", d.SC || "", d.Soporte || "",
+                        d.SolicitudID || "", d.Fecha || "", d.OT || "", d.Flota || "", d.NombreComponente || "", d.PN || "", d.SC || "", d.Soporte || "",
                         (d.TipoRequerimiento || []).join("; "), d.Prioridad || "", d.Superintendencia || "",
                         d.NombreContacto || "", d.Celular || "", d.CoordinadorRecibe || "", d.AreaEntrega || "",
                         c ? c.Estado : "Sin Asignar", procesos,
-                        c ? c.Equipo : "", c ? c.EstimadoHorasHombre : "", c ? c.FechaEstimado : "", c ? c.ComplementoMMHH : "", c ? c.NotificacionCliente : ""
+                        c ? c.Equipo : "", c ? c.EstimadoHorasHombre : "", c ? c.FechaEstimado : "", c ? c.ComplementoMMHH : "", c ? c.NotificacionCliente : "",
+                        demoras, c ? c.Comentario : ""
                     ];
                 }).filter(Boolean);
                 
@@ -535,11 +602,15 @@
                     filtered = filtered.filter(item => {
                         const d = item.parsedData;
                         if (d.Error) return false;
-                        return (d.OT || "").toLowerCase().includes(s) ||
+                        return (d.SolicitudID || "").toLowerCase().includes(s) ||
+                               (d.OT || "").toLowerCase().includes(s) ||
                                (d.NombreComponente || "").toLowerCase().includes(s) ||
                                (d.Flota || "").toLowerCase().includes(s) ||
                                (d.Soporte || "").toLowerCase().includes(s) ||
-                               (d.PN || "").toLowerCase().includes(s);
+                               (d.PN || "").toLowerCase().includes(s) ||
+                               (d.NombreContacto || "").toLowerCase().includes(s) ||
+                               (d.CoordinadorRecibe || "").toLowerCase().includes(s) ||
+                               (d.Superintendencia || "").toLowerCase().includes(s);
                     });
                 }
                 
@@ -565,23 +636,118 @@
                         return d.Fecha <= dbFilter.fechaHasta;
                     });
                 }
-                
+                if (dbFilter.prioridad) {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        return d.Prioridad === dbFilter.prioridad;
+                    });
+                }
+                if (dbFilter.superintendencia) {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        return d.Superintendencia === dbFilter.superintendencia;
+                    });
+                }
+                if (dbFilter.flota) {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        return d.Flota === dbFilter.flota;
+                    });
+                }
+                if (dbFilter.coordinadorRecibe) {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        return d.CoordinadorRecibe === dbFilter.coordinadorRecibe;
+                    });
+                }
+                if (dbFilter.areaEntrega) {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        return d.AreaEntrega === dbFilter.areaEntrega;
+                    });
+                }
+
                 return filtered;
             };
 
             const getCoordFilteredItems = () => {
                 let filtered = [...items];
-                if (coordFilter === 'en_proceso') {
+                if (coordFilter.state === 'en_proceso') {
                     filtered = filtered.filter(item => {
                         const d = item.parsedData;
                         if (d.Error || !d.Coordinador) return false;
-                        return d.Coordinador.Estado !== "Terminado";
+                        return d.Coordinador.Estado !== "Entregado";
                     });
-                } else if (coordFilter === 'terminados') {
+                } else if (coordFilter.state === 'entregados') {
                     filtered = filtered.filter(item => {
                         const d = item.parsedData;
                         if (d.Error || !d.Coordinador) return false;
-                        return d.Coordinador.Estado === "Terminado";
+                        return d.Coordinador.Estado === "Entregado";
+                    });
+                } else if (coordFilter.state === 'no_gestionado') {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        return d.Error ? false : (!d.Coordinador || d.Coordinador.Estado === "No gestionado");
+                    });
+                }
+
+                if (coordFilter.search) {
+                    const s = coordFilter.search.toLowerCase();
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        if (d.Error) return false;
+                        return (d.SolicitudID || "").toLowerCase().includes(s) ||
+                               (d.OT || "").toLowerCase().includes(s) ||
+                               (d.NombreComponente || "").toLowerCase().includes(s) ||
+                               (d.Flota || "").toLowerCase().includes(s) ||
+                               (d.PN || "").toLowerCase().includes(s) ||
+                               (d.SC || "").toLowerCase().includes(s) ||
+                               (d.NombreContacto || "").toLowerCase().includes(s) ||
+                               (d.CoordinadorRecibe || "").toLowerCase().includes(s) ||
+                               (d.AreaEntrega || "").toLowerCase().includes(s) ||
+                               (d.Superintendencia || "").toLowerCase().includes(s);
+                    });
+                }
+                if (coordFilter.superintendencia) {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        return d.Superintendencia === coordFilter.superintendencia;
+                    });
+                }
+                if (coordFilter.prioridad) {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        return d.Prioridad === coordFilter.prioridad;
+                    });
+                }
+                if (coordFilter.flota) {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        return d.Flota === coordFilter.flota;
+                    });
+                }
+                if (coordFilter.coordinadorRecibe) {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        return d.CoordinadorRecibe === coordFilter.coordinadorRecibe;
+                    });
+                }
+                if (coordFilter.areaEntrega) {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        return d.AreaEntrega === coordFilter.areaEntrega;
+                    });
+                }
+                if (coordFilter.fechaDesde) {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        return d.Fecha >= coordFilter.fechaDesde;
+                    });
+                }
+                if (coordFilter.fechaHasta) {
+                    filtered = filtered.filter(item => {
+                        const d = item.parsedData;
+                        return d.Fecha <= coordFilter.fechaHasta;
                     });
                 }
                 return filtered;
@@ -659,10 +825,6 @@
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-5 bg-gray-50/50 p-5 rounded-xl border border-gray-200/50">
                                     <div>
-                                        <label className={labelClass}>Fecha Registro</label>
-                                        <input type="date" name="Fecha" value={formData.Fecha} onChange={handleChange} className={inputClass} required />
-                                    </div>
-                                    <div>
                                         <label className={labelClass}>OT (8 Caracteres)</label>
                                         <input type="text" name="OT" maxLength={8} value={formData.OT} onChange={handleChange} className={inputClass} placeholder="Ej. A0104599" required />
                                         {formData.OT && formData.OT.length !== 8 && (
@@ -704,13 +866,18 @@
                                         ) : formData.Soporte === "Otro" ? (
                                             <input type="text" value={formData.TipoRequerimiento[0] || ""} onChange={(e) => setFormData({...formData, TipoRequerimiento: e.target.value ? [e.target.value] : []})} className={`${inputClass} mt-3`} placeholder="Especifique el tipo de requerimiento..." required />
                                         ) : (
-                                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-3">
-                                                {SOPORTE_OPCIONES[formData.Soporte].map(req => (
-                                                    <label key={req} className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 cursor-pointer hover:border-cerrejon-orange transition-colors shadow-sm select-none">
-                                                        <input type="checkbox" checked={formData.TipoRequerimiento.includes(req)} onChange={() => handleTipoRequerimientoToggle(req)} className="w-4 h-4 accent-cerrejon-orange" />
-                                                        <span className="text-xs font-bold text-gray-700">{req}</span>
-                                                    </label>
-                                                ))}
+                                            <div className="space-y-3 mt-3">
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                                    {SOPORTE_OPCIONES[formData.Soporte].map(req => (
+                                                        <label key={req} className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 cursor-pointer hover:border-cerrejon-orange transition-colors shadow-sm select-none">
+                                                            <input type="checkbox" checked={formData.TipoRequerimiento.includes(req)} onChange={() => handleTipoRequerimientoToggle(req)} className="w-4 h-4 accent-cerrejon-orange" />
+                                                            <span className="text-xs font-bold text-gray-700">{req}</span>
+                                                        </label>
+                                                    ))}
+                                                </div>
+                                                {formData.TipoRequerimiento.includes("Otro") && (
+                                                    <input type="text" value={formData.TipoRequerimientoCustom["Otro"] || ""} onChange={(e) => handleTipoReqCustomChange("Otro", e.target.value)} className={inputClass} placeholder="Especifique el tipo de requerimiento..." required />
+                                                )}
                                             </div>
                                         )}
                                     </div>
@@ -812,15 +979,67 @@
                             <div className="bg-gray-900/80 backdrop-blur-md px-6 py-5 flex flex-wrap justify-between items-center gap-4">
                                 <h2 className="text-lg font-bold text-white uppercase tracking-widest">Gesti&oacute;n de Solicitudes</h2>
                                 <div className="flex gap-2">
-                                    <button onClick={() => setCoordFilter('todos')} className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${coordFilter === 'todos' ? 'bg-cerrejon-orange text-white' : 'bg-white/20 text-white hover:bg-white/30'}`}>Todos</button>
-                                    <button onClick={() => setCoordFilter('en_proceso')} className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${coordFilter === 'en_proceso' ? 'bg-cerrejon-orange text-white' : 'bg-white/20 text-white hover:bg-white/30'}`}>En Proceso</button>
-                                    <button onClick={() => setCoordFilter('terminados')} className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${coordFilter === 'terminados' ? 'bg-cerrejon-orange text-white' : 'bg-white/20 text-white hover:bg-white/30'}`}>Terminados</button>
+                                    <button onClick={() => setCoordFilter(prev => ({ ...prev, state: 'todos' }))} className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${coordFilter.state === 'todos' ? 'bg-cerrejon-orange text-white' : 'bg-white/20 text-white hover:bg-white/30'}`}>Todos</button>
+                                    <button onClick={() => setCoordFilter(prev => ({ ...prev, state: 'no_gestionado' }))} className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${coordFilter.state === 'no_gestionado' ? 'bg-cerrejon-orange text-white' : 'bg-white/20 text-white hover:bg-white/30'}`}>No Gestionado</button>
+                                    <button onClick={() => setCoordFilter(prev => ({ ...prev, state: 'en_proceso' }))} className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${coordFilter.state === 'en_proceso' ? 'bg-cerrejon-orange text-white' : 'bg-white/20 text-white hover:bg-white/30'}`}>En Proceso</button>
+                                    <button onClick={() => setCoordFilter(prev => ({ ...prev, state: 'entregados' }))} className={`px-4 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${coordFilter.state === 'entregados' ? 'bg-cerrejon-orange text-white' : 'bg-white/20 text-white hover:bg-white/30'}`}>Entregados</button>
                                 </div>
+                            </div>
+                            <div className="p-4 bg-gray-50/80 border-b border-gray-200 flex flex-wrap gap-3 items-end">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Buscar</label>
+                                    <input type="text" value={coordFilter.search} onChange={(e) => setCoordFilter(prev => ({...prev, search: e.target.value}))} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white w-44 outline-none focus:border-cerrejon-orange focus:ring-1 focus:ring-cerrejon-orange/50" placeholder="ID, OT, Componente, PN..." />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Superintendencia</label>
+                                    <select value={coordFilter.superintendencia} onChange={(e) => setCoordFilter(prev => ({...prev, superintendencia: e.target.value}))} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange">
+                                        <option value="">Todas</option>
+                                        {SUPERINTENDENCIAS.filter(s => s).map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Prioridad</label>
+                                    <select value={coordFilter.prioridad} onChange={(e) => setCoordFilter(prev => ({...prev, prioridad: e.target.value}))} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange">
+                                        <option value="">Todas</option>
+                                        {Object.keys(PRIORIDADES).map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Flota</label>
+                                    <select value={coordFilter.flota} onChange={(e) => setCoordFilter(prev => ({...prev, flota: e.target.value}))} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange">
+                                        <option value="">Todas</option>
+                                        {FLOTAS.map(f => <option key={f} value={f}>{f}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Coord. Recibe</label>
+                                    <select value={coordFilter.coordinadorRecibe} onChange={(e) => setCoordFilter(prev => ({...prev, coordinadorRecibe: e.target.value}))} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange">
+                                        <option value="">Todos</option>
+                                        {COORDINADORES_LISTA.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Area Entrega</label>
+                                    <select value={coordFilter.areaEntrega} onChange={(e) => setCoordFilter(prev => ({...prev, areaEntrega: e.target.value}))} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange">
+                                        <option value="">Todas</option>
+                                        {AREAS_ENTREGA.map(a => <option key={a} value={a}>{a}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Desde</label>
+                                    <input type="date" value={coordFilter.fechaDesde} onChange={(e) => setCoordFilter(prev => ({...prev, fechaDesde: e.target.value}))} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange" />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Hasta</label>
+                                    <input type="date" value={coordFilter.fechaHasta} onChange={(e) => setCoordFilter(prev => ({...prev, fechaHasta: e.target.value}))} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange" />
+                                </div>
+                                <button onClick={() => setCoordFilter({ state: 'todos', search: '', superintendencia: '', prioridad: '', flota: '', coordinadorRecibe: '', areaEntrega: '', fechaDesde: '', fechaHasta: '' })} className="px-4 py-2 text-xs font-bold bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 uppercase">Limpiar</button>
                             </div>
                             <div className="overflow-x-auto p-4">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="border-b border-gray-400/50 text-xs uppercase font-extrabold text-gray-800">
+                                            <th className="p-3">ID</th>
                                             <th className="p-3">Fecha</th>
                                             <th className="p-3">OT</th>
                                             <th className="p-3">Componente</th>
@@ -832,15 +1051,16 @@
                                     </thead>
                                     <tbody>
                                         {getCoordFilteredItems().length === 0 ? (
-                                            <tr><td colSpan="7" className="text-center p-8 font-medium text-gray-400">No hay solicitudes que mostrar.</td></tr>
+                                            <tr><td colSpan="8" className="text-center p-8 font-medium text-gray-400">No hay solicitudes que mostrar.</td></tr>
                                         ) : (
                                             getCoordFilteredItems().map((item) => {
                                                 const d = item.parsedData;
-                                                if (d.Error) return (<tr key={item.Id}><td colSpan="7" className="p-4 text-red-500">ID {item.Id}: {d.Error}</td></tr>);
+                                                if (d.Error) return (<tr key={item.Id}><td colSpan="8" className="p-4 text-red-500">ID {item.Id}: {d.Error}</td></tr>);
                                                 const gestionado = !!d.Coordinador;
 
                                                 return (
                                                     <tr key={item.Id} className="border-b border-gray-300/30 hover:bg-white/50 transition-colors align-middle">
+                                                        <td className="p-3 font-mono font-bold text-gray-600 text-[10px]">{d.SolicitudID || "-"}</td>
                                                         <td className="p-3 font-medium text-gray-800 text-xs">{d.Fecha}</td>
                                                         <td className="p-3 font-black text-cerrejon-orange text-xs">{d.OT}</td>
                                                         <td className="p-3 font-bold text-gray-800 text-xs">{d.NombreComponente} <span className="font-normal text-gray-500 block text-[10px]">{d.Flota}</span></td>
@@ -850,7 +1070,7 @@
                                                         </td>
                                                         <td className="p-3 text-center">
                                                             {gestionado ? (
-                                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${d.Coordinador.Estado === 'Terminado' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
+                                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${d.Coordinador.Estado === 'Entregado' ? 'bg-green-100 text-green-800 border border-green-200' : d.Coordinador.Estado === 'No gestionado' ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
                                                                     {d.Coordinador.Estado || "Gestionado"}
                                                                 </span>
                                                             ) : (
@@ -897,7 +1117,7 @@
                             <div className="p-4 bg-gray-50/80 border-b border-gray-200 flex flex-wrap gap-3 items-end">
                                 <div>
                                     <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Buscar</label>
-                                    <input type="text" value={dbFilter.search} onChange={(e) => setDbFilter({...dbFilter, search: e.target.value})} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white w-48 outline-none focus:border-cerrejon-orange focus:ring-1 focus:ring-cerrejon-orange/50" placeholder="OT, Componente, Flota..." />
+                                    <input type="text" value={dbFilter.search} onChange={(e) => setDbFilter({...dbFilter, search: e.target.value})} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white w-48 outline-none focus:border-cerrejon-orange focus:ring-1 focus:ring-cerrejon-orange/50" placeholder="ID, OT, Componente, Flota..." />
                                 </div>
                                 <div>
                                     <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Estado</label>
@@ -909,6 +1129,41 @@
                                     </select>
                                 </div>
                                 <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Superintendencia</label>
+                                    <select value={dbFilter.superintendencia} onChange={(e) => setDbFilter({...dbFilter, superintendencia: e.target.value})} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange">
+                                        <option value="">Todas</option>
+                                        {SUPERINTENDENCIAS.filter(s => s).map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Prioridad</label>
+                                    <select value={dbFilter.prioridad} onChange={(e) => setDbFilter({...dbFilter, prioridad: e.target.value})} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange">
+                                        <option value="">Todas</option>
+                                        {Object.keys(PRIORIDADES).map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Flota</label>
+                                    <select value={dbFilter.flota} onChange={(e) => setDbFilter({...dbFilter, flota: e.target.value})} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange">
+                                        <option value="">Todas</option>
+                                        {FLOTAS.map(f => <option key={f} value={f}>{f}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Coord. Recibe</label>
+                                    <select value={dbFilter.coordinadorRecibe} onChange={(e) => setDbFilter({...dbFilter, coordinadorRecibe: e.target.value})} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange">
+                                        <option value="">Todos</option>
+                                        {COORDINADORES_LISTA.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Area Entrega</label>
+                                    <select value={dbFilter.areaEntrega} onChange={(e) => setDbFilter({...dbFilter, areaEntrega: e.target.value})} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange">
+                                        <option value="">Todas</option>
+                                        {AREAS_ENTREGA.map(a => <option key={a} value={a}>{a}</option>)}
+                                    </select>
+                                </div>
+                                <div>
                                     <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Desde</label>
                                     <input type="date" value={dbFilter.fechaDesde} onChange={(e) => setDbFilter({...dbFilter, fechaDesde: e.target.value})} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange" />
                                 </div>
@@ -916,13 +1171,14 @@
                                     <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Hasta</label>
                                     <input type="date" value={dbFilter.fechaHasta} onChange={(e) => setDbFilter({...dbFilter, fechaHasta: e.target.value})} className="px-3 py-2 text-xs rounded-lg border border-gray-300 bg-white outline-none focus:border-cerrejon-orange" />
                                 </div>
-                                <button onClick={() => setDbFilter({ search: '', estado: 'todos', fechaDesde: '', fechaHasta: '' })} className="px-4 py-2 text-xs font-bold bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 uppercase">Limpiar</button>
+                                <button onClick={() => setDbFilter({ search: '', estado: 'todos', fechaDesde: '', fechaHasta: '', prioridad: '', superintendencia: '', flota: '', coordinadorRecibe: '', areaEntrega: '' })} className="px-4 py-2 text-xs font-bold bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 uppercase">Limpiar</button>
                             </div>
 
                             <div className="overflow-x-auto p-4">
                                 <table className="w-full text-left border-collapse">
                                     <thead>
                                         <tr className="border-b border-gray-400/50 text-xs uppercase font-extrabold text-gray-800">
+                                            <th className="p-3">ID</th>
                                             <th className="p-3">Fecha</th>
                                             <th className="p-3">OT</th>
                                             <th className="p-3">Componente</th>
@@ -934,15 +1190,16 @@
                                     </thead>
                                     <tbody>
                                         {getFilteredItems().length === 0 ? (
-                                            <tr><td colSpan="7" className="text-center p-8 font-medium text-gray-400">No hay registros que coincidan con los filtros.</td></tr>
+                                            <tr><td colSpan="8" className="text-center p-8 font-medium text-gray-400">No hay registros que coincidan con los filtros.</td></tr>
                                         ) : (
                                             getFilteredItems().map((item) => {
                                                 const d = item.parsedData;
-                                                if (d.Error) return (<tr key={item.Id}><td colSpan="7" className="p-4 text-red-500">ID {item.Id}: {d.Error}</td></tr>);
+                                                if (d.Error) return (<tr key={item.Id}><td colSpan="8" className="p-4 text-red-500">ID {item.Id}: {d.Error}</td></tr>);
                                                 const gestionado = !!d.Coordinador;
 
                                                 return (
                                                     <tr key={item.Id} className="border-b border-gray-300/30 hover:bg-white/50 transition-colors align-middle">
+                                                        <td className="p-3 font-mono font-bold text-gray-600 text-[10px]">{d.SolicitudID || "-"}</td>
                                                         <td className="p-3 font-medium text-gray-800 text-xs">{d.Fecha}</td>
                                                         <td className="p-3 font-black text-cerrejon-orange text-xs">{d.OT}</td>
                                                         <td className="p-3 font-bold text-gray-800 text-xs">{d.NombreComponente} <span className="font-normal text-gray-500 block text-[10px]">{d.Flota} | PN: {d.PN || "N/A"}</span></td>
@@ -952,7 +1209,7 @@
                                                         </td>
                                                         <td className="p-3 text-center">
                                                             {gestionado ? (
-                                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${d.Coordinador.Estado === 'Terminado' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
+                                                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${d.Coordinador.Estado === 'Entregado' ? 'bg-green-100 text-green-800 border border-green-200' : d.Coordinador.Estado === 'No gestionado' ? 'bg-gray-100 text-gray-500 border border-gray-200' : 'bg-blue-100 text-blue-800 border border-blue-200'}`}>
                                                                     {d.Coordinador.Estado || "Gestionado"}
                                                                 </span>
                                                             ) : (
@@ -996,7 +1253,7 @@
                                     <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gray-50 rounded-t-2xl">
                                         <div>
                                             <h2 className="text-2xl font-black text-gray-800">Gestionar Solicitud (Ficha de Coordinador)</h2>
-                                            <p className="text-sm font-bold text-cerrejon-orange mt-1">OT: {d.OT} | Componente: {d.NombreComponente}</p>
+                                            <p className="text-sm font-bold text-cerrejon-orange mt-1">ID: {d.SolicitudID || "-"} | OT: {d.OT} | Componente: {d.NombreComponente}</p>
                                         </div>
                                         <button onClick={() => setManageModalItem(null)} className="text-gray-400 hover:text-red-500 transition-colors bg-white p-2 rounded-full shadow-sm border border-gray-200">
                                             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1104,6 +1361,42 @@
                                             </div>
                                         </div>
 
+                                        {/* DEMORAS MÚLTIPLES */}
+                                        <div className="bg-red-50/50 p-5 rounded-xl border border-red-200 space-y-4">
+                                            <div className="flex justify-between items-center">
+                                                <label className={labelClass + " mb-0"}>Demoras</label>
+                                                <button type="button" onClick={handleAddDemora} className="px-3 py-1.5 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1">
+                                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                                                    Agregar Demora
+                                                </button>
+                                            </div>
+                                            {coordForm.Demoras.map((dem, idx) => (
+                                                <div key={idx} className="p-3 bg-white/70 rounded-xl border border-red-100 flex gap-3 items-end">
+                                                    <div className="flex-1">
+                                                        <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Descripci&oacute;n #{idx + 1}</label>
+                                                        <input type="text" value={dem.Descripcion} onChange={(e) => handleDemoraChange(idx, "Descripcion", e.target.value)} className={`${inputClass} text-xs p-2`} placeholder="Describa la demora..." required />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Fecha</label>
+                                                        <input type="date" value={dem.Fecha} onChange={(e) => handleDemoraChange(idx, "Fecha", e.target.value)} className={`${inputClass} text-xs p-2 w-36`} required />
+                                                    </div>
+                                                    <button type="button" onClick={() => handleRemoveDemora(idx)} className="text-red-500 hover:text-red-700 mb-1">
+                                                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                    </button>
+                                                </div>
+                                            ))}
+                                            {coordForm.Demoras.length === 0 && (
+                                                <p className="text-xs text-gray-400 italic text-center py-2">Sin demoras registradas. Use el bot&oacute;n para agregar.</p>
+                                            )}
+                                        </div>
+
+                                        {coordForm.Estado === "Entregado" && (
+                                            <div className="bg-green-50/50 p-5 rounded-xl border border-green-200">
+                                                <label className={labelClass}>Comentario <span className="text-red-500">*</span></label>
+                                                <textarea name="Comentario" value={coordForm.Comentario} onChange={handleCoordFormChange} rows="4" className={`${inputClass} resize-none`} placeholder="Describa detalladamente todo lo que se hizo en esta solicitud..." required></textarea>
+                                            </div>
+                                        )}
+
                                         <div className="bg-white/40 p-5 rounded-xl border border-dashed border-gray-400">
                                             <label className={labelClass}>Documentos o Evidencias del Coordinador (Opcional)</label>
                                             <input type="file" accept="image/*" multiple onChange={handleCoordFileChange} ref={coordFileInputRef} className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-bold file:bg-cerrejon-orange file:text-white cursor-pointer" />
@@ -1141,7 +1434,7 @@
                                     <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gray-50 rounded-t-2xl">
                                         <div>
                                             <h2 className="text-2xl font-black text-gray-800">Ficha de Requerimiento de MMHH</h2>
-                                            <p className="text-sm font-bold text-cerrejon-orange mt-1">OT: {d.OT} | Flota: {d.Flota}</p>
+                                            <p className="text-sm font-bold text-cerrejon-orange mt-1">ID: {d.SolicitudID || "-"} | OT: {d.OT} | Flota: {d.Flota}</p>
                                         </div>
                                         <button onClick={() => setViewModalItem(null)} className="text-gray-400 hover:text-red-500 transition-colors bg-white p-2 rounded-full shadow-sm border border-gray-200">
                                             <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1159,6 +1452,7 @@
                                                 </h3>
                                                 
                                                 <div className="grid grid-cols-2 gap-3 text-xs">
+                                                    <div><span className="block text-[10px] text-gray-400 uppercase font-bold">ID Solicitud</span><span className="font-bold font-mono text-gray-800 text-[10px]">{d.SolicitudID || "-"}</span></div>
                                                     <div><span className="block text-[10px] text-gray-400 uppercase font-bold">Fecha Registro</span><span className="font-bold text-gray-800">{d.Fecha}</span></div>
                                                     <div><span className="block text-[10px] text-gray-400 uppercase font-bold">OT</span><span className="font-bold text-cerrejon-orange">{d.OT}</span></div>
                                                     <div><span className="block text-[10px] text-gray-400 uppercase font-bold">Flota / Cantidad</span><span className="font-bold text-gray-800">{d.Flota} ({d.Cantidad || 1})</span></div>
@@ -1234,6 +1528,27 @@
                                                             <span className="block text-[10px] text-orange-400 uppercase font-bold mb-1">Complemento MMHH</span>
                                                             <p className="p-3 bg-white rounded border border-orange-100 text-gray-800 whitespace-pre-wrap">{c.ComplementoMMHH || "Sin complemento ingresado."}</p>
                                                         </div>
+
+                                                        {c.Demoras && c.Demoras.length > 0 && (
+                                                            <div className="text-xs pt-1">
+                                                                <span className="block text-[10px] text-orange-400 uppercase font-bold mb-1">Demoras ({c.Demoras.length})</span>
+                                                                <div className="space-y-1">
+                                                                    {c.Demoras.map((dem, idx) => (
+                                                                        <div key={idx} className="p-2 bg-red-50 rounded border border-red-100">
+                                                                            <span className="font-bold text-gray-800">{dem.Descripcion || "Sin descripci\u00F3n"}</span>
+                                                                            <span className="text-gray-500 block text-[9px]">{dem.Fecha}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {c.Comentario && (
+                                                            <div className="text-xs pt-1">
+                                                                <span className="block text-[10px] text-green-400 uppercase font-bold mb-1">Comentario de Entrega</span>
+                                                                <p className="p-3 bg-green-50 rounded border border-green-100 text-gray-800 whitespace-pre-wrap">{c.Comentario}</p>
+                                                            </div>
+                                                        )}
 
                                                         <div className="text-[10px] text-gray-500 pt-2 border-t border-orange-200/50">
                                                             <div>Coordinador: <strong>{c.Nombre}</strong></div>
