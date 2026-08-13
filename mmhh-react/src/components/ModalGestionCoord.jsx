@@ -1,8 +1,34 @@
 import React, { useRef } from 'react';
-import { PROCESOS_COORDINADOR, EQUIPOS_COORDINADOR, ESTADOS_COORDINADOR } from '../constants';
+import { PROCESOS_COORDINADOR, ESTADOS_COORDINADOR, AREAS_PROCESO, PRIORIDADES } from '../constants';
+import { esEstadoCierre, getEstadoSolicitud, nuevoProceso } from '../utils/helpers';
+import { input, inputSm, label, labelSm, btnPrimary, btnSecondary, sectionTitle, estadoSolicitudTono, pill } from '../ui';
 
-const inputClass = "block w-full rounded-xl bg-white/60 border border-gray-300 focus:bg-white focus:border-cerrejon-orange focus:ring-2 focus:ring-cerrejon-orange/50 transition-all p-3 text-sm outline-none";
-const labelClass = "block text-xs font-bold text-gray-700 mb-2 uppercase tracking-widest";
+function Panel({ titulo, descripcion, accion, tono = "slate", children }) {
+    const tonos = {
+        slate: "border-slate-200 bg-white",
+        orange: "border-cerrejon-orange/25 bg-cerrejon-orangeSoft/50",
+        red: "border-red-200 bg-red-50/50",
+        emerald: "border-emerald-300 bg-emerald-50/60"
+    };
+    return (
+        <section className={`rounded-xl border p-5 ${tonos[tono]}`}>
+            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h3 className={sectionTitle}>{titulo}</h3>
+                    {descripcion && <p className="mt-1 text-xs text-slate-500">{descripcion}</p>}
+                </div>
+                {accion}
+            </div>
+            {children}
+        </section>
+    );
+}
+
+const IconX = (props) => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" {...props}>
+        <path d="M6 18L18 6M6 6l12 12" />
+    </svg>
+);
 
 export default function ModalGestionCoord({
     manageModalItem, setManageModalItem,
@@ -16,19 +42,19 @@ export default function ModalGestionCoord({
 
     if (!manageModalItem) return null;
 
+    const historial = coordForm.Comentarios || [];
+    const comentarioCierreExistente = historial.find(c => c.EsCierre);
+    const enCierre = esEstadoCierre(coordForm.Estado);
+    const estadoSolicitud = getEstadoSolicitud(d);
+    const totalHH = coordForm.Procesos.reduce((acc, p) => acc + (Number(p.EstimadoHorasHombre) || 0), 0);
+
     const handleAddProceso = () => {
-        setCoordForm(prev => ({
-            ...prev,
-            Procesos: [...prev.Procesos, { ProcesoRequerido: "Ensayo No destructivo", ProcesoRequeridoCustom: "", SubprocesoRequerido: "", SubprocesoRequeridoCustom: "" }]
-        }));
+        setCoordForm(prev => ({ ...prev, Procesos: [...prev.Procesos, nuevoProceso()] }));
     };
 
     const handleRemoveProceso = (index) => {
         if (coordForm.Procesos.length <= 1) return;
-        setCoordForm(prev => ({
-            ...prev,
-            Procesos: prev.Procesos.filter((_, i) => i !== index)
-        }));
+        setCoordForm(prev => ({ ...prev, Procesos: prev.Procesos.filter((_, i) => i !== index) }));
     };
 
     const handleAddDemora = () => {
@@ -39,10 +65,7 @@ export default function ModalGestionCoord({
     };
 
     const handleRemoveDemora = (index) => {
-        setCoordForm(prev => ({
-            ...prev,
-            Demoras: prev.Demoras.filter((_, i) => i !== index)
-        }));
+        setCoordForm(prev => ({ ...prev, Demoras: prev.Demoras.filter((_, i) => i !== index) }));
     };
 
     const handleDemoraChange = (index, name, value) => {
@@ -63,6 +86,7 @@ export default function ModalGestionCoord({
                 newProcesos[index].ProcesoRequeridoCustom = "";
                 newProcesos[index].SubprocesoRequeridoCustom = "";
             }
+            if (name === "AreaProceso" && value !== "Otro") newProcesos[index].AreaProcesoCustom = "";
             return { ...prev, Procesos: newProcesos };
         });
     };
@@ -76,179 +100,335 @@ export default function ModalGestionCoord({
         setCoordEvidenceFiles(Array.from(e.target.files));
     };
 
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        onSaveCoordResponse(e);
-    };
-
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in p-4 overflow-y-auto">
-            <div className="bg-white rounded-2xl w-full max-w-4xl shadow-2xl flex flex-col my-auto relative border-t-8 border-cerrejon-orange">
-                <div className="flex justify-between items-center p-6 border-b border-gray-200 bg-gray-50 rounded-t-2xl">
-                    <div>
-                        <h2 className="text-2xl font-black text-gray-800">Gestionar Solicitud (Ficha de Coordinador)</h2>
-                        <p className="text-sm font-bold text-cerrejon-orange mt-1">ID: {d.SolicitudID || "-"} | OT: {d.OT} | Componente: {d.NombreComponente}</p>
+        <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm animate-fade-in sm:p-6">
+            <div className="my-auto w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl shadow-slate-900/25">
+
+                {/* ENCABEZADO */}
+                <div className="border-b border-slate-200 bg-slate-50 px-7 py-5">
+                    <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                            <span className={sectionTitle}>Gestión de coordinación</span>
+                            <h2 className="mt-1 truncate text-xl font-semibold tracking-tight text-slate-900">
+                                {d.NombreComponente || "Requerimiento"}
+                            </h2>
+                            <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-slate-500">
+                                <span>Solicitud <strong className="tabular font-semibold text-cerrejon-orange">{d.SolicitudID || "—"}</strong></span>
+                                <span>OT <strong className="tabular font-semibold text-slate-700">{d.OT}</strong></span>
+                                <span>Flota <strong className="font-semibold text-slate-700">{d.Flota}</strong></span>
+                                <span>Prioridad cliente <strong className="font-semibold text-slate-700">{d.Prioridad}</strong></span>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setManageModalItem(null)} type="button"
+                            className="shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700"
+                            aria-label="Cerrar"
+                        >
+                            <IconX className="h-5 w-5" />
+                        </button>
                     </div>
-                    <button onClick={() => setManageModalItem(null)} className="text-gray-400 hover:text-red-500 transition-colors bg-white p-2 rounded-full shadow-sm border border-gray-200">
-                        <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[75vh]">
-                    {/* PROCESOS MULTIPLES */}
-                    <div className="bg-orange-50/50 p-5 rounded-xl border border-orange-200 space-y-4">
-                        <div className="flex justify-between items-center">
-                            <label className={labelClass + " mb-0"}>Procesos Requeridos</label>
-                            <button type="button" onClick={handleAddProceso} className="px-3 py-1.5 bg-cerrejon-orange text-white text-xs font-bold rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1">
-                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                                Agregar Proceso
-                            </button>
-                        </div>
-                        {coordForm.Procesos.map((proc, idx) => {
-                            const subsDisponibles = PROCESOS_COORDINADOR[proc.ProcesoRequerido] || [];
-                            return (
-                                <div key={idx} className="p-4 bg-white/70 rounded-xl border border-gray-200">
-                                    <div className="flex justify-between items-center mb-3">
-                                        <span className="text-xs font-black text-gray-600 uppercase">Proceso #{idx + 1}</span>
-                                        {coordForm.Procesos.length > 1 && (
-                                            <button type="button" onClick={() => handleRemoveProceso(idx)} className="text-red-500 hover:text-red-700 text-xs font-bold">
-                                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Proceso Requerido</label>
-                                            <select value={proc.ProcesoRequerido} onChange={(e) => handleProcesoChange(idx, "ProcesoRequerido", e.target.value)} className={`${inputClass} text-xs p-2`} required>
-                                                {Object.keys(PROCESOS_COORDINADOR).map(p => (
-                                                    <option key={p} value={p}>{p}</option>
-                                                ))}
-                                            </select>
-                                            {proc.ProcesoRequerido === "Otro" && (
-                                                <input type="text" value={proc.ProcesoRequeridoCustom} onChange={(e) => handleProcesoChange(idx, "ProcesoRequeridoCustom", e.target.value)} className={`${inputClass} mt-2 text-xs p-2`} placeholder="Especifique el proceso..." required />
-                                            )}
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Subproceso Requerido</label>
-                                            {subsDisponibles.length === 0 ? (
-                                                <input type="text" readOnly value="No requiere subproceso" className={`${inputClass} bg-gray-100 text-gray-400 cursor-not-allowed text-xs p-2`} />
-                                            ) : subsDisponibles.length === 1 && subsDisponibles[0] === "Otro" ? (
-                                                <input type="text" value={proc.SubprocesoRequeridoCustom} onChange={(e) => handleProcesoChange(idx, "SubprocesoRequeridoCustom", e.target.value)} className={`${inputClass} text-xs p-2`} placeholder="Especifique el subproceso..." required />
-                                            ) : (
-                                                <>
-                                                    <select value={proc.SubprocesoRequerido} onChange={(e) => handleProcesoChange(idx, "SubprocesoRequerido", e.target.value)} className={`${inputClass} text-xs p-2`} required>
-                                                        {subsDisponibles.map(s => (
-                                                            <option key={s} value={s}>{s}</option>
-                                                        ))}
-                                                    </select>
-                                                    {proc.SubprocesoRequerido === "Otro" && (
-                                                        <input type="text" value={proc.SubprocesoRequeridoCustom} onChange={(e) => handleProcesoChange(idx, "SubprocesoRequeridoCustom", e.target.value)} className={`${inputClass} mt-2 text-xs p-2`} placeholder="Especifique el subproceso..." required />
-                                                    )}
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                <form id="form-gestion-coord" onSubmit={onSaveCoordResponse} className="thin-scroll max-h-[74vh] space-y-5 overflow-y-auto px-7 py-6">
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5 bg-white/40">
-                        <div className="md:col-span-2">
-                            <label className={labelClass}>Complemento MMHH</label>
-                            <input type="text" name="ComplementoMMHH" value={coordForm.ComplementoMMHH} onChange={handleCoordFormChange} className={inputClass} placeholder="Informaci&oacute;n t&eacute;cnica complementaria..." />
-                        </div>
+                    {/* ESTADO DE LA SOLICITUD — SOLO LECTURA */}
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4">
                         <div>
-                            <label className={labelClass}>Equipo Utilizado</label>
-                            <select name="Equipo" value={coordForm.Equipo} onChange={handleCoordFormChange} className={inputClass} required>
-                                {EQUIPOS_COORDINADOR.map(eq => (
-                                    <option key={eq} value={eq}>{eq}</option>
-                                ))}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-5 bg-white/40">
-                        <div>
-                            <label className={labelClass}>Estado</label>
-                            <select name="Estado" value={coordForm.Estado} onChange={handleCoordFormChange} className={inputClass} required>
-                                {ESTADOS_COORDINADOR.map(est => (
-                                    <option key={est} value={est}>{est}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className={labelClass}>Horas Hombre (Estimado)</label>
-                            <input type="number" name="EstimadoHorasHombre" min="0" value={coordForm.EstimadoHorasHombre} onChange={handleCoordFormChange} className={inputClass} required />
-                        </div>
-                        <div>
-                            <label className={labelClass}>Fecha Estimada</label>
-                            <input type="date" name="FechaEstimado" value={coordForm.FechaEstimado} onChange={handleCoordFormChange} className={inputClass} required />
-                        </div>
-                        <div>
-                            <label className={labelClass}>Notificaci&oacute;n a Cliente</label>
-                            <select name="NotificacionCliente" value={coordForm.NotificacionCliente} onChange={handleCoordFormChange} className={inputClass} required>
-                                <option value="Si">S&iacute;</option>
-                                <option value="No">No</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* DEMORAS MULTIPLES */}
-                    <div className="bg-red-50/50 p-5 rounded-xl border border-red-200 space-y-4">
-                        <div className="flex justify-between items-center">
-                            <label className={labelClass + " mb-0"}>Demoras</label>
-                            <button type="button" onClick={handleAddDemora} className="px-3 py-1.5 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition-colors flex items-center gap-1">
-                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                                Agregar Demora
-                            </button>
-                        </div>
-                        {coordForm.Demoras.map((dem, idx) => (
-                            <div key={idx} className="p-3 bg-white/70 rounded-xl border border-red-100 flex gap-3 items-end">
-                                <div className="flex-1">
-                                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Descripci&oacute;n #{idx + 1}</label>
-                                    <input type="text" value={dem.Descripcion} onChange={(e) => handleDemoraChange(idx, "Descripcion", e.target.value)} className={`${inputClass} text-xs p-2`} placeholder="Describa la demora..." required />
-                                </div>
-                                <div>
-                                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Fecha</label>
-                                    <input type="date" value={dem.Fecha} onChange={(e) => handleDemoraChange(idx, "Fecha", e.target.value)} className={`${inputClass} text-xs p-2 w-36`} required />
-                                </div>
-                                <button type="button" onClick={() => handleRemoveDemora(idx)} className="text-red-500 hover:text-red-700 mb-1">
-                                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                                </button>
+                            <span className={labelSm}>Estado de la solicitud</span>
+                            <div className="mt-0.5 flex items-center gap-2">
+                                <span className={`${pill} ${estadoSolicitudTono(estadoSolicitud)}`}>{estadoSolicitud}</span>
+                                <span className="text-[11px] text-slate-500">Asignado por el sistema · no editable</span>
                             </div>
-                        ))}
-                        {coordForm.Demoras.length === 0 && (
-                            <p className="text-xs text-gray-400 italic text-center py-2">Sin demoras registradas. Use el bot&oacute;n para agregar.</p>
+                        </div>
+                        {estadoSolicitud === "Pendiente" && (
+                            <p className="max-w-sm text-[11px] leading-relaxed text-slate-500">
+                                Al guardar cualquier cambio, esta solicitud pasará automáticamente a <strong className="font-semibold text-slate-700">Gestionado</strong>.
+                            </p>
                         )}
                     </div>
 
-                    {coordForm.Estado === "Entregado" && (
-                        <div className="bg-green-50/50 p-5 rounded-xl border border-green-200">
-                            <label className={labelClass}>Comentario <span className="text-red-500">*</span></label>
-                            <textarea name="Comentario" value={coordForm.Comentario} onChange={handleCoordFormChange} rows="4" className={`${inputClass} resize-none`} placeholder="Describa detalladamente todo lo que se hizo en esta solicitud..." required></textarea>
+                    {/* PROCESOS */}
+                    <Panel
+                        tono="orange"
+                        titulo="Procesos requeridos"
+                        descripcion="Cada proceso lleva su área de ejecución y sus horas hombre estimadas."
+                        accion={
+                            <div className="flex items-center gap-3">
+                                <span className="tabular rounded-md bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-200">
+                                    Total {totalHH} H/H
+                                </span>
+                                <button type="button" onClick={handleAddProceso} className="inline-flex items-center gap-1.5 rounded-lg bg-cerrejon-orange px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-cerrejon-orangeDark">
+                                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                                    Agregar proceso
+                                </button>
+                            </div>
+                        }
+                    >
+                        <div className="space-y-3">
+                            {coordForm.Procesos.map((proc, idx) => {
+                                const subsDisponibles = PROCESOS_COORDINADOR[proc.ProcesoRequerido] || [];
+                                return (
+                                    <div key={idx} className="rounded-lg border border-slate-200 bg-white p-4">
+                                        <div className="mb-3 flex items-center justify-between">
+                                            <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                                                <span className="tabular flex h-5 w-5 items-center justify-center rounded bg-slate-100 text-[10px] font-bold text-slate-600">{idx + 1}</span>
+                                                Proceso
+                                            </span>
+                                            {coordForm.Procesos.length > 1 && (
+                                                <button type="button" onClick={() => handleRemoveProceso(idx)} className="rounded p-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600" aria-label="Quitar proceso">
+                                                    <IconX className="h-4 w-4" />
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                            <div>
+                                                <label className={labelSm}>Proceso requerido</label>
+                                                <select value={proc.ProcesoRequerido} onChange={(e) => handleProcesoChange(idx, "ProcesoRequerido", e.target.value)} className={inputSm} required>
+                                                    {Object.keys(PROCESOS_COORDINADOR).map(p => <option key={p} value={p}>{p}</option>)}
+                                                </select>
+                                                {proc.ProcesoRequerido === "Otro" && (
+                                                    <input type="text" value={proc.ProcesoRequeridoCustom} onChange={(e) => handleProcesoChange(idx, "ProcesoRequeridoCustom", e.target.value)} className={`${inputSm} mt-2`} placeholder="Especifique el proceso..." required />
+                                                )}
+                                            </div>
+
+                                            <div>
+                                                <label className={labelSm}>Subproceso requerido</label>
+                                                {subsDisponibles.length === 0 ? (
+                                                    <input type="text" readOnly value="No requiere subproceso" className={`${inputSm} bg-slate-100 text-slate-400`} />
+                                                ) : subsDisponibles.length === 1 && subsDisponibles[0] === "Otro" ? (
+                                                    <input type="text" value={proc.SubprocesoRequeridoCustom} onChange={(e) => handleProcesoChange(idx, "SubprocesoRequeridoCustom", e.target.value)} className={inputSm} placeholder="Especifique el subproceso..." required />
+                                                ) : (
+                                                    <>
+                                                        <select value={proc.SubprocesoRequerido} onChange={(e) => handleProcesoChange(idx, "SubprocesoRequerido", e.target.value)} className={inputSm} required>
+                                                            {subsDisponibles.map(s => <option key={s} value={s}>{s}</option>)}
+                                                        </select>
+                                                        {proc.SubprocesoRequerido === "Otro" && (
+                                                            <input type="text" value={proc.SubprocesoRequeridoCustom} onChange={(e) => handleProcesoChange(idx, "SubprocesoRequeridoCustom", e.target.value)} className={`${inputSm} mt-2`} placeholder="Especifique el subproceso..." required />
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            <div>
+                                                <label className={labelSm}>Área de proceso requerido</label>
+                                                <select value={proc.AreaProceso || ""} onChange={(e) => handleProcesoChange(idx, "AreaProceso", e.target.value)} className={inputSm} required>
+                                                    {AREAS_PROCESO.map(a => <option key={a} value={a}>{a}</option>)}
+                                                </select>
+                                                {proc.AreaProceso === "Otro" && (
+                                                    <input type="text" value={proc.AreaProcesoCustom || ""} onChange={(e) => handleProcesoChange(idx, "AreaProcesoCustom", e.target.value)} className={`${inputSm} mt-2`} placeholder="Especifique el área..." required />
+                                                )}
+                                            </div>
+
+                                            <div>
+                                                <label className={labelSm}>Horas hombre estimado</label>
+                                                <div className="relative">
+                                                    <input
+                                                        type="number" min="0" step="0.5"
+                                                        value={proc.EstimadoHorasHombre ?? 0}
+                                                        onChange={(e) => handleProcesoChange(idx, "EstimadoHorasHombre", e.target.value)}
+                                                        className={`${inputSm} tabular pr-12`} required
+                                                    />
+                                                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-slate-400">H/H</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
+                    </Panel>
+
+                    {/* SEGUIMIENTO */}
+                    <Panel titulo="Seguimiento del componente">
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                            <div>
+                                <label className={labelSm}>Estado del componente</label>
+                                <select name="Estado" value={coordForm.Estado} onChange={handleCoordFormChange} className={inputSm} required>
+                                    {ESTADOS_COORDINADOR.map(est => <option key={est} value={est}>{est}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className={labelSm}>Prioridad del coordinador</label>
+                                <select name="PrioridadCoordinador" value={coordForm.PrioridadCoordinador} onChange={handleCoordFormChange} className={inputSm} required>
+                                    {Object.keys(PRIORIDADES).map(p => (
+                                        <option key={p} value={p}>{p} — {PRIORIDADES[p]} {PRIORIDADES[p] === 1 ? "día" : "días"}</option>
+                                    ))}
+                                </select>
+                                <p className="mt-1 text-[10px] text-slate-500">Es la prioridad que rige las métricas.</p>
+                            </div>
+                            <div>
+                                <label className={labelSm}>Fecha estimada</label>
+                                <input type="date" name="FechaEstimado" value={coordForm.FechaEstimado} onChange={handleCoordFormChange} className={`${inputSm} tabular`} required />
+                            </div>
+                            <div>
+                                <label className={labelSm}>Notificación a cliente</label>
+                                <select name="NotificacionCliente" value={coordForm.NotificacionCliente} onChange={handleCoordFormChange} className={inputSm} required>
+                                    <option value="Si">Sí</option>
+                                    <option value="No">No</option>
+                                </select>
+                            </div>
+                            <div className="md:col-span-2 lg:col-span-4">
+                                <label className={labelSm}>Complemento MMHH</label>
+                                <input type="text" name="ComplementoMMHH" value={coordForm.ComplementoMMHH} onChange={handleCoordFormChange} className={inputSm} placeholder="Información técnica complementaria..." />
+                            </div>
+                        </div>
+                    </Panel>
+
+                    {/* HISTORIAL DE COMENTARIOS */}
+                    <Panel
+                        titulo="Historial de comentarios"
+                        descripcion="Registro permanente de la gestión. Los comentarios no se pueden editar ni eliminar."
+                        accion={
+                            <span className="tabular rounded-md bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                                {historial.length} registro{historial.length === 1 ? '' : 's'}
+                            </span>
+                        }
+                    >
+                        {historial.length === 0 ? (
+                            <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-xs text-slate-500">
+                                Aún no hay comentarios registrados para este requerimiento.
+                            </p>
+                        ) : (
+                            <ol className="thin-scroll max-h-64 space-y-2.5 overflow-y-auto pr-1">
+                                {historial.map((c, i) => (
+                                    <li
+                                        key={i}
+                                        className={`rounded-lg border px-4 py-3 ${c.EsCierre ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white'}`}
+                                    >
+                                        <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                                            <span className="text-[12px] font-semibold text-slate-800">{c.Autor || "Coordinador"}</span>
+                                            {c.EsCierre && (
+                                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+                                                    <svg className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.3 3.29 6.8-6.79a1 1 0 011.9.5z" clipRule="evenodd" /></svg>
+                                                    Cierre
+                                                </span>
+                                            )}
+                                            <span className="tabular ml-auto text-[11px] text-slate-400">{c.Fecha}</span>
+                                        </div>
+                                        <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">{c.Texto}</p>
+                                    </li>
+                                ))}
+                            </ol>
+                        )}
+
+                        <div className="mt-4 border-t border-slate-200 pt-4">
+                            <label className={labelSm}>Nuevo comentario</label>
+                            <textarea
+                                name="NuevoComentario" value={coordForm.NuevoComentario} onChange={handleCoordFormChange}
+                                rows="3" className={`${inputSm} resize-none`}
+                                placeholder="Describa la gestión realizada, hallazgos o acuerdos con el cliente..."
+                            />
+                            <p className="mt-1.5 text-[11px] text-slate-500">
+                                Se registrará a nombre de <strong className="font-semibold text-slate-700">{userAuth.name}</strong> con la fecha de hoy.
+                            </p>
+                        </div>
+                    </Panel>
+
+                    {/* COMENTARIO DE CIERRE */}
+                    {enCierre && (
+                        <Panel
+                            tono="emerald"
+                            titulo="Comentario de cierre"
+                            descripcion={`Obligatorio para dejar el componente en "${coordForm.Estado}". Queda marcado de forma diferenciada en el historial.`}
+                        >
+                            {comentarioCierreExistente ? (
+                                <div className="rounded-lg border border-emerald-300 bg-white px-4 py-3">
+                                    <div className="mb-1.5 flex items-center gap-2">
+                                        <span className="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">Cierre registrado</span>
+                                        <span className="tabular ml-auto text-[11px] text-slate-400">{comentarioCierreExistente.Fecha}</span>
+                                    </div>
+                                    <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">{comentarioCierreExistente.Texto}</p>
+                                    <p className="mt-2 text-[11px] text-slate-500">Por {comentarioCierreExistente.Autor}</p>
+                                </div>
+                            ) : (
+                                <textarea
+                                    name="ComentarioCierre" value={coordForm.ComentarioCierre} onChange={handleCoordFormChange}
+                                    rows="4" className={`${input} resize-none border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/15`}
+                                    placeholder="Detalle el trabajo ejecutado, resultado final y condiciones de entrega del componente..."
+                                    required
+                                />
+                            )}
+                        </Panel>
                     )}
 
-                    <div className="bg-white/40 p-5 rounded-xl border border-dashed border-gray-400">
-                        <label className={labelClass}>Documentos o Evidencias del Coordinador (Opcional)</label>
-                        <input type="file" accept="image/*" multiple onChange={handleCoordFileChange} ref={coordFileInputRef} className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-bold file:bg-cerrejon-orange file:text-white cursor-pointer" />
-                    </div>
+                    {/* DEMORAS */}
+                    <Panel
+                        tono="red"
+                        titulo="Demoras"
+                        descripcion="Eventos que afectaron el cumplimiento del tiempo estimado."
+                        accion={
+                            <button type="button" onClick={handleAddDemora} className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50">
+                                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
+                                Agregar demora
+                            </button>
+                        }
+                    >
+                        {coordForm.Demoras.length === 0 ? (
+                            <p className="rounded-lg border border-dashed border-red-200 bg-white/60 px-4 py-5 text-center text-xs text-slate-500">
+                                Sin demoras registradas.
+                            </p>
+                        ) : (
+                            <div className="space-y-2.5">
+                                {coordForm.Demoras.map((dem, idx) => (
+                                    <div key={idx} className="flex items-end gap-3 rounded-lg border border-red-200 bg-white p-3">
+                                        <div className="flex-1">
+                                            <label className={labelSm}>Descripción {idx + 1}</label>
+                                            <input type="text" value={dem.Descripcion} onChange={(e) => handleDemoraChange(idx, "Descripcion", e.target.value)} className={inputSm} placeholder="Describa la demora..." required />
+                                        </div>
+                                        <div className="w-40">
+                                            <label className={labelSm}>Fecha</label>
+                                            <input type="date" value={dem.Fecha} onChange={(e) => handleDemoraChange(idx, "Fecha", e.target.value)} className={`${inputSm} tabular`} required />
+                                        </div>
+                                        <button type="button" onClick={() => handleRemoveDemora(idx)} className="mb-1 rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600" aria-label="Quitar demora">
+                                            <IconX className="h-4 w-4" />
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </Panel>
 
-                    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 flex justify-between items-center text-xs">
-                        <span className="text-gray-500 font-bold uppercase">Registrado por:</span>
-                        <span className="font-extrabold text-cerrejon-dark">{userAuth.name} ({userAuth.email})</span>
-                    </div>
-
-                    <div className="flex justify-end gap-3 border-t border-gray-100 pt-4">
-                        <button type="button" onClick={() => setManageModalItem(null)} className="px-6 py-2 bg-gray-200 text-gray-700 font-bold rounded-lg hover:bg-gray-300">
-                            Cancelar
-                        </button>
-                        <button type="submit" disabled={loading} className="px-6 py-2 bg-gradient-to-r from-cerrejon-orange to-red-600 text-white font-bold rounded-lg shadow-md hover:scale-[1.01] transition-all">
-                            {loading ? "Actualizando Registro..." : "Anexar Gesti\u00F3n"}
-                        </button>
-                    </div>
+                    {/* EVIDENCIAS */}
+                    <Panel titulo="Evidencias de coordinación" descripcion="Se anexan al historial; las cargas anteriores se conservan.">
+                        <input
+                            type="file" accept="image/*" multiple onChange={handleCoordFileChange} ref={coordFileInputRef}
+                            className="block w-full cursor-pointer text-[13px] text-slate-600 file:mr-4 file:cursor-pointer file:rounded-lg file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-[13px] file:font-semibold file:text-white hover:file:bg-slate-700"
+                        />
+                        {coordEvidenceFiles.length > 0 && (
+                            <p className="mt-2.5 text-[11px] font-medium text-emerald-700">
+                                {coordEvidenceFiles.length} archivo{coordEvidenceFiles.length > 1 ? 's' : ''} listo{coordEvidenceFiles.length > 1 ? 's' : ''} para anexar
+                            </p>
+                        )}
+                    </Panel>
                 </form>
+
+                {/* PIE FIJO */}
+                {error && (
+                    <div className="flex items-start gap-2.5 border-t border-red-200 bg-red-50 px-7 py-3">
+                        <svg className="mt-0.5 h-4 w-4 shrink-0 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M18 10A8 8 0 112 10a8 8 0 0116 0zm-9 4a1 1 0 112 0 1 1 0 01-2 0zm1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                        </svg>
+                        <p className="text-[12px] font-medium leading-relaxed text-red-800">{error}</p>
+                    </div>
+                )}
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-7 py-4">
+                    <p className="text-[11px] text-slate-500">
+                        Registrado por <strong className="font-semibold text-slate-700">{userAuth.name}</strong>
+                    </p>
+                    <div className="flex gap-3">
+                        <button type="button" onClick={() => setManageModalItem(null)} className={btnSecondary}>Cancelar</button>
+                        <button type="submit" form="form-gestion-coord" disabled={loading} className={btnPrimary}>
+                            {loading && (
+                                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
+                                </svg>
+                            )}
+                            {loading ? "Guardando..." : "Guardar gestión"}
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     );

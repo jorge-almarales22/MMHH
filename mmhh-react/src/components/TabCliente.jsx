@@ -1,11 +1,25 @@
 import React, { useRef } from 'react';
 import { FLOTAS, SOPORTE_OPCIONES, PRIORIDADES, SUPERINTENDENCIAS, COORDINADORES_LISTA, AREAS_ENTREGA } from '../constants';
+import { card, input, label, btnPrimary, sectionTitle } from '../ui';
 
-const glassCard = "bg-white/70 backdrop-blur-xl border border-white/40 shadow-2xl rounded-2xl";
-const inputClass = "block w-full rounded-xl bg-white/60 border border-gray-300 focus:bg-white focus:border-cerrejon-orange focus:ring-2 focus:ring-cerrejon-orange/50 transition-all p-3 text-sm outline-none";
-const labelClass = "block text-xs font-bold text-gray-700 mb-2 uppercase tracking-widest";
+function Seccion({ paso, titulo, descripcion, children }) {
+    return (
+        <section className="border-t border-slate-200 pt-7 first:border-t-0 first:pt-0">
+            <div className="mb-5 flex items-baseline gap-3">
+                <span className="tabular flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-cerrejon-orangeSoft text-[11px] font-bold text-cerrejon-orangeDark">
+                    {paso}
+                </span>
+                <div>
+                    <h3 className="text-sm font-semibold tracking-tight text-slate-900">{titulo}</h3>
+                    {descripcion && <p className="mt-0.5 text-xs text-slate-500">{descripcion}</p>}
+                </div>
+            </div>
+            {children}
+        </section>
+    );
+}
 
-export default function TabCliente({ formData, setFormData, evidenceFiles, setEvidenceFiles, loading, error, onFileChange, onSubmit }) {
+export default function TabCliente({ formData, setFormData, evidenceFiles, loading, onFileChange, onSubmit }) {
     const fileInputRef = useRef(null);
 
     const handleChange = (e) => {
@@ -44,154 +58,222 @@ export default function TabCliente({ formData, setFormData, evidenceFiles, setEv
         }));
     };
 
+    const otValida = formData.OT.length === 8;
+
     return (
-        <div className={`${glassCard} p-8 w-full`}>
-            <h2 className="text-2xl font-extrabold text-gray-800 tracking-tight mb-6">Nuevo Requerimiento de Mantenimiento</h2>
-            <form onSubmit={onSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-5 bg-gray-50/50 p-5 rounded-xl border border-gray-200/50">
-                    <div>
-                        <label className={labelClass}>OT (8 Caracteres)</label>
-                        <input type="text" name="OT" maxLength={8} value={formData.OT} onChange={handleChange} className={inputClass} placeholder="Ej. A0104599" required />
-                        {formData.OT && formData.OT.length !== 8 && (
-                            <p className="text-[10px] text-red-500 mt-1 font-bold">Debe contener exactamente 8 caracteres ({formData.OT.length}/8)</p>
-                        )}
-                    </div>
-                    <div>
-                        <label className={labelClass}>Flota</label>
-                        <select name="Flota" value={formData.Flota} onChange={handleChange} className={inputClass} required>
-                            {FLOTAS.map(f => <option key={f} value={f}>{f}</option>)}
-                        </select>
-                        {formData.Flota === "Otra" && (
-                            <input type="text" name="FlotaCustom" value={formData.FlotaCustom} onChange={handleChange} className={`${inputClass} mt-2`} placeholder="Especifique la flota..." required />
-                        )}
-                    </div>
-                    <div>
-                        <label className={labelClass}>Cantidad</label>
-                        <input type="number" name="Cantidad" min="1" step="1" value={formData.Cantidad} onChange={(e) => setFormData({ ...formData, Cantidad: parseInt(e.target.value) || 1 })} className={inputClass} required />
-                    </div>
+        <div className={`${card} w-full`}>
+            <div className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 px-8 py-6">
+                <div>
+                    <span className={sectionTitle}>Módulo Cliente</span>
+                    <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">Nuevo requerimiento de mantenimiento</h2>
                 </div>
+                <p className="text-xs text-slate-500">
+                    Los campos marcados con <span className="font-semibold text-cerrejon-orange">*</span> son obligatorios
+                </p>
+            </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 bg-white/40 p-5 rounded-xl border border-white/50">
-                    <div>
-                        <label className={labelClass}>Soporte (Categor&iacute;a Principal)</label>
-                        <select name="Soporte" value={formData.Soporte} onChange={handleChange} className={inputClass} required>
-                            <option value="">-- Seleccione Soporte --</option>
-                            {Object.keys(SOPORTE_OPCIONES).map(soporte => (
-                                <option key={soporte} value={soporte}>{soporte}</option>
-                            ))}
-                        </select>
-                        {formData.Soporte === "Otro" && (
-                            <input type="text" name="SoporteCustom" value={formData.SoporteCustom} onChange={handleChange} className={`${inputClass} mt-2`} placeholder="Especifique el soporte..." required />
-                        )}
-                    </div>
-                    <div className="lg:col-span-2 bg-gray-50/60 p-4 rounded-xl border border-gray-200">
-                        <label className={labelClass}>Tipo de Requerimiento (Selecci&oacute;n M&uacute;ltiple)</label>
-                        {!formData.Soporte ? (
-                            <p className="text-xs text-gray-500 italic mt-4">Seleccione una categor&iacute;a de Soporte para cargar los tipos de requerimiento.</p>
-                        ) : formData.Soporte === "Otro" ? (
-                            <input type="text" value={formData.TipoRequerimiento[0] || ""} onChange={(e) => setFormData({ ...formData, TipoRequerimiento: e.target.value ? [e.target.value] : [] })} className={`${inputClass} mt-3`} placeholder="Especifique el tipo de requerimiento..." required />
-                        ) : (
-                            <div className="space-y-3 mt-3">
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                    {SOPORTE_OPCIONES[formData.Soporte].map(req => (
-                                        <label key={req} className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-gray-200 cursor-pointer hover:border-cerrejon-orange transition-colors shadow-sm select-none">
-                                            <input type="checkbox" checked={formData.TipoRequerimiento.includes(req)} onChange={() => handleTipoRequerimientoToggle(req)} className="w-4 h-4 accent-cerrejon-orange" />
-                                            <span className="text-xs font-bold text-gray-700">{req}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                                {formData.TipoRequerimiento.includes("Otro") && (
-                                    <input type="text" value={formData.TipoRequerimientoCustom["Otro"] || ""} onChange={(e) => handleTipoReqCustomChange("Otro", e.target.value)} className={inputClass} placeholder="Especifique el tipo de requerimiento..." required />
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </div>
+            <form onSubmit={onSubmit} className="space-y-7 px-8 py-7">
 
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-5 bg-white/40 p-5 rounded-xl border border-white/50">
-                    <div className="md:col-span-2">
-                        <label className={labelClass}>Nombre de Componente / Parte</label>
-                        <input type="text" name="NombreComponente" value={formData.NombreComponente} onChange={handleChange} className={inputClass} placeholder="Ej. Cig&uuml;e&ntilde;al de Motor" required />
-                    </div>
-                    <div>
-                        <label className={labelClass}>PN (Part Number)</label>
-                        <input type="text" name="PN" value={formData.PN} onChange={handleChange} className={inputClass} placeholder="Ej. 104-599" required />
-                    </div>
-                    <div>
-                        <label className={labelClass}>SC (StockCode)</label>
-                        <input type="number" name="SC" value={formData.SC} onChange={handleChange} className={inputClass} placeholder="Ej. 12" />
-                    </div>
-                    <div className="md:col-span-2">
-                        <label className={labelClass}>Nombre de quien solicita</label>
-                        <input type="text" name="NombreContacto" value={formData.NombreContacto} onChange={handleChange} className={inputClass} placeholder="Ej. Juan P&eacute;rez" required />
-                    </div>
-                    <div className="md:col-span-2">
-                        <label className={labelClass}>Celular</label>
-                        <input type="number" name="Celular" value={formData.Celular} onChange={handleChange} className={inputClass} placeholder="Ej. 3101234567" required />
-                    </div>
-                </div>
-
-                <div className="bg-white/40 p-5 rounded-xl border border-white/50">
-                    <div className="w-full md:w-1/2">
-                        <label className={labelClass}>Superintendencia</label>
-                        <select name="Superintendencia" value={formData.Superintendencia || ""} onChange={handleChange} className={inputClass} required>
-                            {SUPERINTENDENCIAS.map(s => <option key={s} value={s}>{s || "-- Seleccione Superintendencia --"}</option>)}
-                        </select>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-white/40 p-5 rounded-xl border border-white/50">
-                    <div className="md:col-span-2">
-                        <label className={labelClass}>Detalle del Requerimiento</label>
-                        <textarea name="DetalleRequerimiento" value={formData.DetalleRequerimiento} onChange={handleChange} rows="4" className={`${inputClass} resize-none`} placeholder="Descripci&oacute;n detallada de la solicitud..." required></textarea>
-                    </div>
-                    <div className="bg-orange-50/50 p-4 rounded-xl border border-orange-200 flex flex-col justify-between">
+                <Seccion paso="1" titulo="Identificación del trabajo" descripcion="Orden de trabajo, flota y cantidad de piezas.">
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
                         <div>
-                            <label className={labelClass}>Prioridad</label>
-                            <select name="Prioridad" value={formData.Prioridad} onChange={handleChange} className={inputClass} required>
-                                {Object.keys(PRIORIDADES).map(prio => (
-                                    <option key={prio} value={prio}>{prio} -{'>'} {PRIORIDADES[prio]} {PRIORIDADES[prio] === 1 ? "d\u00EDa" : "d\u00EDas"}</option>
+                            <label className={label}>OT <span className="text-cerrejon-orange">*</span></label>
+                            <input
+                                type="text" name="OT" maxLength={8} value={formData.OT} onChange={handleChange}
+                                className={`${input} tabular uppercase ${formData.OT && !otValida ? 'border-red-400 focus:border-red-500 focus:ring-red-500/15' : ''}`}
+                                placeholder="A0104599" required
+                            />
+                            <p className={`mt-1.5 text-[11px] font-medium ${formData.OT && !otValida ? 'text-red-600' : 'text-slate-400'}`}>
+                                {formData.OT && !otValida ? `Debe tener exactamente 8 caracteres (${formData.OT.length}/8)` : 'Exactamente 8 caracteres'}
+                            </p>
+                        </div>
+                        <div>
+                            <label className={label}>Flota <span className="text-cerrejon-orange">*</span></label>
+                            <select name="Flota" value={formData.Flota} onChange={handleChange} className={input} required>
+                                {FLOTAS.map(f => <option key={f} value={f}>{f}</option>)}
+                            </select>
+                            {formData.Flota === "Otra" && (
+                                <input type="text" name="FlotaCustom" value={formData.FlotaCustom} onChange={handleChange} className={`${input} mt-2`} placeholder="Especifique la flota..." required />
+                            )}
+                        </div>
+                        <div>
+                            <label className={label}>Cantidad <span className="text-cerrejon-orange">*</span></label>
+                            <input type="number" name="Cantidad" min="1" step="1" value={formData.Cantidad} onChange={(e) => setFormData({ ...formData, Cantidad: parseInt(e.target.value) || 1 })} className={`${input} tabular`} required />
+                        </div>
+                    </div>
+                </Seccion>
+
+                <Seccion paso="2" titulo="Tipo de soporte requerido" descripcion="Elija la categoría y marque todos los requerimientos que apliquen.">
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                        <div>
+                            <label className={label}>Soporte (categoría principal) <span className="text-cerrejon-orange">*</span></label>
+                            <select name="Soporte" value={formData.Soporte} onChange={handleChange} className={input} required>
+                                <option value="">Seleccione soporte</option>
+                                {Object.keys(SOPORTE_OPCIONES).map(soporte => (
+                                    <option key={soporte} value={soporte}>{soporte}</option>
                                 ))}
                             </select>
+                            {formData.Soporte === "Otro" && (
+                                <input type="text" name="SoporteCustom" value={formData.SoporteCustom} onChange={handleChange} className={`${input} mt-2`} placeholder="Especifique el soporte..." required />
+                            )}
                         </div>
-                        <div className="mt-3 p-2 bg-white/80 rounded-lg border border-cerrejon-orange/30 text-center">
-                            <span className="block text-[10px] font-bold text-gray-500 uppercase">Tiempo de Soluci&oacute;n</span>
-                            <span className="text-lg font-black text-cerrejon-orange">
-                                {PRIORIDADES[formData.Prioridad]} {PRIORIDADES[formData.Prioridad] === 1 ? "D\u00EDa" : "D\u00EDas"}
-                            </span>
+
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5 lg:col-span-2">
+                            <div className="flex items-center justify-between">
+                                <label className={`${label} mb-0`}>Tipo de requerimiento (selección múltiple)</label>
+                                {formData.TipoRequerimiento.length > 0 && (
+                                    <span className="rounded-full bg-cerrejon-orangeSoft px-2 py-0.5 text-[11px] font-semibold text-cerrejon-orangeDark">
+                                        {formData.TipoRequerimiento.length} seleccionado{formData.TipoRequerimiento.length > 1 ? 's' : ''}
+                                    </span>
+                                )}
+                            </div>
+
+                            {!formData.Soporte ? (
+                                <p className="mt-4 text-xs text-slate-500">
+                                    Seleccione una categoría de soporte para cargar los tipos de requerimiento.
+                                </p>
+                            ) : formData.Soporte === "Otro" ? (
+                                <input
+                                    type="text" value={formData.TipoRequerimiento[0] || ""}
+                                    onChange={(e) => setFormData({ ...formData, TipoRequerimiento: e.target.value ? [e.target.value] : [] })}
+                                    className={`${input} mt-3`} placeholder="Especifique el tipo de requerimiento..." required
+                                />
+                            ) : (
+                                <div className="mt-3 space-y-3">
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                        {SOPORTE_OPCIONES[formData.Soporte].map(req => {
+                                            const activo = formData.TipoRequerimiento.includes(req);
+                                            return (
+                                                <label
+                                                    key={req}
+                                                    className={`flex cursor-pointer select-none items-center gap-2.5 rounded-lg border px-3 py-2.5 text-[13px] transition-colors ${activo
+                                                        ? 'border-cerrejon-orange bg-cerrejon-orangeSoft font-semibold text-cerrejon-orangeDark'
+                                                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'}`}
+                                                >
+                                                    <input
+                                                        type="checkbox" checked={activo}
+                                                        onChange={() => handleTipoRequerimientoToggle(req)}
+                                                        className="h-4 w-4 shrink-0 rounded accent-cerrejon-orange"
+                                                    />
+                                                    <span className="leading-tight">{req}</span>
+                                                </label>
+                                            );
+                                        })}
+                                    </div>
+                                    {formData.TipoRequerimiento.includes("Otro") && (
+                                        <input type="text" value={formData.TipoRequerimientoCustom["Otro"] || ""} onChange={(e) => handleTipoReqCustomChange("Otro", e.target.value)} className={input} placeholder="Especifique el tipo de requerimiento..." required />
+                                    )}
+                                </div>
+                            )}
                         </div>
                     </div>
-                </div>
+                </Seccion>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 bg-white/40 p-5 rounded-xl border border-white/50">
-                    <div>
-                        <label className={labelClass}>Coordinador de MMHH Quien Recibe</label>
-                        <select name="CoordinadorRecibe" value={formData.CoordinadorRecibe} onChange={handleChange} className={inputClass} required>
-                            {COORDINADORES_LISTA.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                        {formData.CoordinadorRecibe === "Otro" && (
-                            <input type="text" name="CoordinadorRecibeCustom" value={formData.CoordinadorRecibeCustom} onChange={handleChange} className={`${inputClass} mt-2`} placeholder="Especifique el coordinador..." required />
+                <Seccion paso="3" titulo="Componente y contacto" descripcion="Datos de la pieza y de quien realiza la solicitud.">
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-4">
+                        <div className="md:col-span-2">
+                            <label className={label}>Nombre de componente / parte <span className="text-cerrejon-orange">*</span></label>
+                            <input type="text" name="NombreComponente" value={formData.NombreComponente} onChange={handleChange} className={input} placeholder="Ej. Cigüeñal de motor" required />
+                        </div>
+                        <div>
+                            <label className={label}>PN (part number) <span className="text-cerrejon-orange">*</span></label>
+                            <input type="text" name="PN" value={formData.PN} onChange={handleChange} className={`${input} tabular`} placeholder="104-599" required />
+                        </div>
+                        <div>
+                            <label className={label}>SC (stock code)</label>
+                            <input type="number" name="SC" value={formData.SC} onChange={handleChange} className={`${input} tabular`} placeholder="12" />
+                        </div>
+                        <div className="md:col-span-2">
+                            <label className={label}>Nombre de quien solicita <span className="text-cerrejon-orange">*</span></label>
+                            <input type="text" name="NombreContacto" value={formData.NombreContacto} onChange={handleChange} className={input} placeholder="Ej. Juan Pérez" required />
+                        </div>
+                        <div>
+                            <label className={label}>Celular <span className="text-cerrejon-orange">*</span></label>
+                            <input type="number" name="Celular" value={formData.Celular} onChange={handleChange} className={`${input} tabular`} placeholder="3101234567" required />
+                        </div>
+                        <div>
+                            <label className={label}>Superintendencia <span className="text-cerrejon-orange">*</span></label>
+                            <select name="Superintendencia" value={formData.Superintendencia || ""} onChange={handleChange} className={input} required>
+                                {SUPERINTENDENCIAS.map(s => <option key={s} value={s}>{s || "Seleccione superintendencia"}</option>)}
+                            </select>
+                        </div>
+                    </div>
+                </Seccion>
+
+                <Seccion paso="4" titulo="Detalle y prioridad" descripcion="Describa el trabajo requerido y su nivel de urgencia.">
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                        <div className="lg:col-span-2">
+                            <label className={label}>Detalle del requerimiento <span className="text-cerrejon-orange">*</span></label>
+                            <textarea name="DetalleRequerimiento" value={formData.DetalleRequerimiento} onChange={handleChange} rows="6" className={`${input} resize-none`} placeholder="Descripción detallada de la solicitud: síntoma, alcance esperado, condiciones especiales..." required></textarea>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5">
+                            <label className={label}>Prioridad <span className="text-cerrejon-orange">*</span></label>
+                            <select name="Prioridad" value={formData.Prioridad} onChange={handleChange} className={input} required>
+                                {Object.keys(PRIORIDADES).map(prio => (
+                                    <option key={prio} value={prio}>{prio} — {PRIORIDADES[prio]} {PRIORIDADES[prio] === 1 ? "día" : "días"}</option>
+                                ))}
+                            </select>
+                            <div className="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-4 text-center">
+                                <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Tiempo de solución</span>
+                                <span className="tabular mt-1 block text-3xl font-semibold text-cerrejon-orange">
+                                    {PRIORIDADES[formData.Prioridad]}
+                                </span>
+                                <span className="text-[11px] font-medium text-slate-500">
+                                    {PRIORIDADES[formData.Prioridad] === 1 ? "día calendario" : "días calendario"}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </Seccion>
+
+                <Seccion paso="5" titulo="Entrega y evidencias" descripcion="Quién recibe la pieza y soportes fotográficos opcionales.">
+                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                        <div>
+                            <label className={label}>Coordinador de MMHH que recibe <span className="text-cerrejon-orange">*</span></label>
+                            <select name="CoordinadorRecibe" value={formData.CoordinadorRecibe} onChange={handleChange} className={input} required>
+                                {COORDINADORES_LISTA.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                            {formData.CoordinadorRecibe === "Otro" && (
+                                <input type="text" name="CoordinadorRecibeCustom" value={formData.CoordinadorRecibeCustom} onChange={handleChange} className={`${input} mt-2`} placeholder="Especifique el coordinador..." required />
+                            )}
+                        </div>
+                        <div>
+                            <label className={label}>Área de entrega <span className="text-cerrejon-orange">*</span></label>
+                            <select name="AreaEntrega" value={formData.AreaEntrega} onChange={handleChange} className={input} required>
+                                {AREAS_ENTREGA.map(a => <option key={a} value={a}>{a}</option>)}
+                            </select>
+                            {formData.AreaEntrega === "Otra" && (
+                                <input type="text" name="AreaEntregaCustom" value={formData.AreaEntregaCustom} onChange={handleChange} className={`${input} mt-2`} placeholder="Especifique el área..." required />
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-5">
+                        <label className={label}>Documentos o evidencias fotográficas (opcional)</label>
+                        <input
+                            type="file" accept="image/*" multiple onChange={onFileChange} ref={fileInputRef}
+                            className="block w-full cursor-pointer text-[13px] text-slate-600 file:mr-4 file:cursor-pointer file:rounded-lg file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-[13px] file:font-semibold file:text-white hover:file:bg-slate-700"
+                        />
+                        {evidenceFiles.length > 0 && (
+                            <p className="mt-2.5 text-[11px] font-medium text-emerald-700">
+                                {evidenceFiles.length} archivo{evidenceFiles.length > 1 ? 's' : ''} listo{evidenceFiles.length > 1 ? 's' : ''} para adjuntar
+                            </p>
                         )}
                     </div>
-                    <div>
-                        <label className={labelClass}>&Aacute;rea de Entrega</label>
-                        <select name="AreaEntrega" value={formData.AreaEntrega} onChange={handleChange} className={inputClass} required>
-                            {AREAS_ENTREGA.map(a => <option key={a} value={a}>{a}</option>)}
-                        </select>
-                        {formData.AreaEntrega === "Otra" && (
-                            <input type="text" name="AreaEntregaCustom" value={formData.AreaEntregaCustom} onChange={handleChange} className={`${inputClass} mt-2`} placeholder="Especifique el &aacute;rea..." required />
+                </Seccion>
+
+                <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-6">
+                    <p className="text-xs text-slate-500">
+                        Al guardar, el sistema asigna un número de solicitud y la deja en estado <strong className="font-semibold text-slate-700">Pendiente</strong>.
+                    </p>
+                    <button type="submit" disabled={loading} className={btnPrimary}>
+                        {loading && (
+                            <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
+                            </svg>
                         )}
-                    </div>
-                </div>
-
-                <div className="bg-white/40 p-5 rounded-xl border border-dashed border-gray-400">
-                    <label className={labelClass}>Documentos o Evidencias Fotogr&aacute;ficas (Opcional)</label>
-                    <input type="file" accept="image/*" multiple onChange={onFileChange} ref={fileInputRef} className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:font-bold file:bg-cerrejon-orange file:text-white cursor-pointer" />
-                </div>
-
-                <div className="flex justify-end pt-4 border-t border-white/30">
-                    <button type="submit" disabled={loading} className="px-10 py-3 bg-gradient-to-r from-cerrejon-orange to-red-600 text-white font-bold rounded-xl shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50">
-                        {loading ? "Procesando Informaci&oacute;n..." : "Guardar Requerimiento"}
+                        {loading ? "Procesando..." : "Guardar requerimiento"}
                     </button>
                 </div>
             </form>

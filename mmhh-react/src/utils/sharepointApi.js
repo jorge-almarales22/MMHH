@@ -1,4 +1,5 @@
-import { SP_CONFIG } from '../constants';
+import { SP_CONFIG, ESTADO_SOLICITUD } from '../constants';
+import { esEstadoCierre, getCurrentDateTime, normalizarComentarios } from './helpers';
 
 export const authenticateUser = async () => {
     try {
@@ -55,11 +56,11 @@ export const fetchItems = async () => {
     });
 };
 
-export const createItem = async (formData, evidenceFiles, compressImageFn, generateSolicitudIDFn) => {
+export const createItem = async (formData, evidenceFiles, compressImageFn, generateSolicitudIDFn, existingIds = []) => {
     const digest = await getRequestDigest();
     const entityType = await getEntityType(SP_CONFIG.listTitle);
 
-    const solicitudID = generateSolicitudIDFn();
+    const solicitudID = generateSolicitudIDFn(existingIds);
 
     let finalTipoRequerimiento = formData.TipoRequerimiento.map(req => {
         if (req === "Otro" && formData.TipoRequerimientoCustom["Otro"]) {
@@ -68,7 +69,13 @@ export const createItem = async (formData, evidenceFiles, compressImageFn, gener
         return req;
     });
 
-    let finalDataObj = { ...formData, SolicitudID: solicitudID, TipoRequerimiento: finalTipoRequerimiento };
+    let finalDataObj = {
+        ...formData,
+        SolicitudID: solicitudID,
+        TipoRequerimiento: finalTipoRequerimiento,
+        // Estado de la solicitud: lo fija el sistema y nadie puede editarlo despues.
+        EstadoSolicitud: ESTADO_SOLICITUD.PENDIENTE
+    };
     if (formData.Flota === "Otra" && formData.FlotaCustom) finalDataObj.Flota = formData.FlotaCustom;
     if (formData.Soporte === "Otro" && formData.SoporteCustom) finalDataObj.Soporte = formData.SoporteCustom;
     if (formData.CoordinadorRecibe === "Otro" && formData.CoordinadorRecibeCustom) finalDataObj.CoordinadorRecibe = formData.CoordinadorRecibeCustom;
@@ -115,27 +122,69 @@ export const updateCoordinatorData = async (manageModalItem, coordForm, coordEvi
         let proceso = { ...p };
         if (p.ProcesoRequerido === "Otro" && p.ProcesoRequeridoCustom) proceso.ProcesoRequerido = p.ProcesoRequeridoCustom;
         if (p.SubprocesoRequerido === "Otro" && p.SubprocesoRequeridoCustom) proceso.SubprocesoRequerido = p.SubprocesoRequeridoCustom;
+        if (p.AreaProceso === "Otro" && p.AreaProcesoCustom) proceso.AreaProceso = p.AreaProcesoCustom;
+        proceso.EstimadoHorasHombre = Number(p.EstimadoHorasHombre) || 0;
         return proceso;
     });
 
+    const coordinadorPrevio = manageModalItem.parsedData.Coordinador || {};
+
+    // El historial se reconstruye desde lo ya persistido: el formulario solo puede
+    // anexar, nunca reescribir ni borrar comentarios anteriores.
+    const historialPrevio = [...normalizarComentarios(coordinadorPrevio)];
+    const sello = getCurrentDateTime();
+
+    const nuevoComentario = (coordForm.NuevoComentario || "").trim();
+    if (nuevoComentario) {
+        historialPrevio.push({
+            Texto: nuevoComentario,
+            Autor: userAuth.name,
+            Email: userAuth.email,
+            Fecha: sello,
+            EsCierre: false
+        });
+    }
+
+    const yaTieneCierre = historialPrevio.some(c => c.EsCierre);
+    const comentarioCierre = (coordForm.ComentarioCierre || "").trim();
+    if (esEstadoCierre(coordForm.Estado) && comentarioCierre && !yaTieneCierre) {
+        historialPrevio.push({
+            Texto: comentarioCierre,
+            Autor: userAuth.name,
+            Email: userAuth.email,
+            Fecha: sello,
+            EsCierre: true,
+            EstadoCierre: coordForm.Estado
+        });
+    }
+
+    // Las evidencias tambien se acumulan en lugar de reemplazarse.
+    const imagenesPrevias = Array.isArray(coordinadorPrevio.ImagenesBase64) ? coordinadorPrevio.ImagenesBase64 : [];
+
     const updatedParsedData = {
         ...manageModalItem.parsedData,
+        // Cualquier gestion guardada marca la solicitud como Gestionado. Es irreversible.
+        EstadoSolicitud: ESTADO_SOLICITUD.GESTIONADO,
         Coordinador: {
+            ...coordinadorPrevio,
             Email: userAuth.email,
             Nombre: userAuth.name,
             FechaDiligenciado: getCurrentDateFn(),
             Procesos: finalProcesos,
             ComplementoMMHH: coordForm.ComplementoMMHH,
-            Equipo: coordForm.Equipo,
             Estado: coordForm.Estado,
-            EstimadoHorasHombre: coordForm.EstimadoHorasHombre,
+            PrioridadCoordinador: coordForm.PrioridadCoordinador,
             FechaEstimado: coordForm.FechaEstimado,
             NotificacionCliente: coordForm.NotificacionCliente,
             Demoras: coordForm.Demoras,
-            Comentario: coordForm.Comentario,
-            ImagenesBase64: coordBase64Images
+            Comentarios: historialPrevio,
+            ImagenesBase64: [...imagenesPrevias, ...coordBase64Images]
         }
     };
+
+    // Campo heredado que ya no se captura en el formulario.
+    delete updatedParsedData.Coordinador.Equipo;
+    delete updatedParsedData.Coordinador.EstimadoHorasHombre;
 
     const itemPayload = {
         "__metadata": { "type": entityType },

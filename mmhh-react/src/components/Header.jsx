@@ -1,34 +1,75 @@
 import React from 'react';
 
-export default function Header({ userAuth }) {
+export default function Header({ userAuth, resumen }) {
+    const iniciales = (userAuth.name || "")
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(p => p[0])
+        .join("")
+        .toUpperCase() || "··";
+
     return (
-        <header className="bg-white/70 backdrop-blur-xl border border-white/40 shadow-2xl rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-cerrejon-gold via-cerrejon-orange to-red-600"></div>
-            <div className="flex items-center gap-5 z-10">
-                <div className="p-3 bg-white/80 rounded-xl shadow-sm backdrop-blur-sm">
-                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M19 21H5C3.89543 21 3 20.1046 3 19V5C3 3.89543 3.89543 3 5 3H19C20.1046 3 21 3.89543 21 5V19C21 20.1046 20.1046 21 19 21Z" stroke="#1a202c" strokeWidth="2" strokeLinejoin="round"/>
-                        <path d="M12 7V17M7 12H17" stroke="#C77953" strokeWidth="2" strokeLinecap="round"/>
-                    </svg>
+        <header className="rounded-xl border border-slate-200 bg-cerrejon-dark shadow-lg shadow-slate-900/10 overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-cerrejon-gold via-cerrejon-orange to-cerrejon-orangeDark" />
+
+            <div className="flex flex-col gap-6 px-6 py-5 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+                <div className="flex items-center gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white/10 ring-1 ring-inset ring-white/15">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M4 19V7.5a1 1 0 01.55-.9l6-3a1 1 0 01.9 0l6 3a1 1 0 01.55.9V19" stroke="#E2B53C" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d="M3 19h18M9 19v-4.5h4V19" stroke="#C77953" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 className="text-lg font-semibold tracking-tight text-white">
+                            Cerrejón <span className="font-normal text-slate-400">SGIA</span>
+                        </h1>
+                        <p className="mt-0.5 text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">
+                            Gestión de Requerimientos de MMHH
+                        </p>
+                    </div>
                 </div>
-                <div>
-                    <h1 className="text-3xl font-black text-gray-900 tracking-tight">Cerrej&oacute;n <span className="text-cerrejon-orange font-light">SGIA</span></h1>
-                    <p className="text-xs font-bold text-gray-600 uppercase tracking-[0.2em] mt-1">Gesti&oacute;n de Requerimientos de MMHH</p>
-                </div>
-            </div>
-            <div className="flex items-center gap-4 bg-gray-950/10 p-3 rounded-xl border border-white/20 z-10">
-                <div className="text-right">
-                    <p className="text-xs font-black text-gray-900">{userAuth.name}</p>
-                    <p className="text-[10px] text-gray-500 font-medium">{userAuth.email || "Sin correo"}</p>
-                </div>
-                <div className="flex flex-col items-center">
-                    {userAuth.isCoordinator ? (
-                        <span className="bg-green-600 text-white text-[9px] font-extrabold px-2 py-1 rounded-full uppercase tracking-wider">Coordinador</span>
-                    ) : (
-                        <span className="bg-gray-600 text-white text-[9px] font-extrabold px-2 py-1 rounded-full uppercase tracking-wider">Cliente</span>
-                    )}
+
+                {resumen && (
+                    <div className="flex items-stretch gap-6 border-y border-white/10 py-4 lg:border-y-0 lg:py-0">
+                        <Metrica valor={resumen.total} etiqueta="Solicitudes" />
+                        <Divisor />
+                        <Metrica valor={resumen.pendientes} etiqueta="Pendientes" acento="text-cerrejon-gold" />
+                        <Divisor />
+                        <Metrica valor={resumen.enProceso} etiqueta="En gestión" acento="text-sky-300" />
+                        <Divisor />
+                        <Metrica valor={resumen.entregadas} etiqueta="Entregadas" acento="text-emerald-300" />
+                    </div>
+                )}
+
+                <div className="flex items-center gap-3">
+                    <div className="text-right">
+                        <p className="text-[13px] font-semibold leading-tight text-white">{userAuth.name}</p>
+                        <p className="text-[11px] leading-tight text-slate-400">{userAuth.email || "Sin correo"}</p>
+                    </div>
+                    <div className="relative">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-[13px] font-semibold text-white ring-1 ring-inset ring-white/15">
+                            {iniciales}
+                        </div>
+                        <span
+                            className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-cerrejon-dark ${userAuth.isCoordinator ? 'bg-emerald-400' : 'bg-slate-400'}`}
+                            title={userAuth.isCoordinator ? "Coordinador" : "Cliente"}
+                        />
+                    </div>
                 </div>
             </div>
         </header>
+    );
+}
+
+const Divisor = () => <div className="w-px self-stretch bg-white/10" />;
+
+function Metrica({ valor, etiqueta, acento = "text-white" }) {
+    return (
+        <div className="min-w-[4.5rem]">
+            <div className={`tabular text-xl font-semibold leading-none ${acento}`}>{valor}</div>
+            <div className="mt-1.5 text-[10px] font-medium uppercase tracking-[0.12em] text-slate-400">{etiqueta}</div>
+        </div>
     );
 }
