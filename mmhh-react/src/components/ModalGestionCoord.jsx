@@ -1,21 +1,29 @@
 import React, { useRef } from 'react';
 import { PROCESOS_COORDINADOR, ESTADOS_COORDINADOR, AREAS_PROCESO, PRIORIDADES } from '../constants';
 import { esEstadoCierre, getEstadoSolicitud, nuevoProceso } from '../utils/helpers';
-import { input, inputSm, label, labelSm, btnPrimary, btnSecondary, sectionTitle, estadoSolicitudTono, pill } from '../ui';
+import { medirTolerancia } from '../utils/tolerancia';
+import { ToleranciaDetalle } from './Tolerancia';
+import { campo, campoMini, rotulo, rotuloMini, btn, btnLinea, btnMini, dial, marca, marcaSolicitud } from '../ui';
 
-function Panel({ titulo, descripcion, accion, tono = "slate", children }) {
-    const tonos = {
-        slate: "border-slate-200 bg-white",
-        orange: "border-cerrejon-orange/25 bg-cerrejon-orangeSoft/50",
-        red: "border-red-200 bg-red-50/50",
-        emerald: "border-emerald-300 bg-emerald-50/60"
-    };
+const IconX = (p) => (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="square" {...p}>
+        <path d="M5 5l10 10M15 5L5 15" />
+    </svg>
+);
+
+const IconMas = (p) => (
+    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="square" {...p}>
+        <path d="M10 4v12M4 10h12" />
+    </svg>
+);
+
+function Bloque({ titulo, nota, accion, children, ultimo = false }) {
     return (
-        <section className={`rounded-xl border p-5 ${tonos[tono]}`}>
+        <section className={`px-6 py-5 ${ultimo ? '' : 'border-b border-iron-200'}`}>
             <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                 <div>
-                    <h3 className={sectionTitle}>{titulo}</h3>
-                    {descripcion && <p className="mt-1 text-xs text-slate-500">{descripcion}</p>}
+                    <h3 className={dial}>{titulo}</h3>
+                    {nota && <p className="mt-1 max-w-xl text-[12px] leading-relaxed text-iron-500">{nota}</p>}
                 </div>
                 {accion}
             </div>
@@ -24,12 +32,6 @@ function Panel({ titulo, descripcion, accion, tono = "slate", children }) {
     );
 }
 
-const IconX = (props) => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" {...props}>
-        <path d="M6 18L18 6M6 6l12 12" />
-    </svg>
-);
-
 export default function ModalGestionCoord({
     manageModalItem, setManageModalItem,
     coordForm, setCoordForm,
@@ -37,392 +39,348 @@ export default function ModalGestionCoord({
     loading, error, userAuth,
     onSaveCoordResponse
 }) {
-    const coordFileInputRef = useRef(null);
+    const fileRef = useRef(null);
     const d = manageModalItem?.parsedData;
-
     if (!manageModalItem) return null;
 
     const historial = coordForm.Comentarios || [];
-    const comentarioCierreExistente = historial.find(c => c.EsCierre);
+    const cierrePrevio = historial.find(c => c.EsCierre);
     const enCierre = esEstadoCierre(coordForm.Estado);
-    const estadoSolicitud = getEstadoSolicitud(d);
-    const totalHH = coordForm.Procesos.reduce((acc, p) => acc + (Number(p.EstimadoHorasHombre) || 0), 0);
+    const estadoSol = getEstadoSolicitud(d);
+    const totalHH = coordForm.Procesos.reduce((a, p) => a + (Number(p.EstimadoHorasHombre) || 0), 0);
+    const tol = medirTolerancia(d);
 
-    const handleAddProceso = () => {
-        setCoordForm(prev => ({ ...prev, Procesos: [...prev.Procesos, nuevoProceso()] }));
-    };
+    const setCampo = (e) => setCoordForm(p => ({ ...p, [e.target.name]: e.target.value }));
 
-    const handleRemoveProceso = (index) => {
-        if (coordForm.Procesos.length <= 1) return;
-        setCoordForm(prev => ({ ...prev, Procesos: prev.Procesos.filter((_, i) => i !== index) }));
-    };
+    const addProceso = () => setCoordForm(p => ({ ...p, Procesos: [...p.Procesos, nuevoProceso()] }));
+    const delProceso = (i) => coordForm.Procesos.length > 1 && setCoordForm(p => ({ ...p, Procesos: p.Procesos.filter((_, x) => x !== i) }));
 
-    const handleAddDemora = () => {
-        setCoordForm(prev => ({
-            ...prev,
-            Demoras: [...prev.Demoras, { Descripcion: "", Fecha: new Date().toISOString().split('T')[0] }]
-        }));
-    };
+    const setProceso = (i, name, value) => setCoordForm(prev => {
+        const ps = [...prev.Procesos];
+        ps[i] = { ...ps[i], [name]: value };
+        if (name === "ProcesoRequerido") {
+            const subs = PROCESOS_COORDINADOR[value] || [];
+            ps[i].SubprocesoRequerido = subs[0] || "";
+            ps[i].ProcesoRequeridoCustom = "";
+            ps[i].SubprocesoRequeridoCustom = "";
+        }
+        if (name === "AreaProceso" && value !== "Otro") ps[i].AreaProcesoCustom = "";
+        return { ...prev, Procesos: ps };
+    });
 
-    const handleRemoveDemora = (index) => {
-        setCoordForm(prev => ({ ...prev, Demoras: prev.Demoras.filter((_, i) => i !== index) }));
-    };
-
-    const handleDemoraChange = (index, name, value) => {
-        setCoordForm(prev => {
-            const newDemoras = [...prev.Demoras];
-            newDemoras[index] = { ...newDemoras[index], [name]: value };
-            return { ...prev, Demoras: newDemoras };
-        });
-    };
-
-    const handleProcesoChange = (index, name, value) => {
-        setCoordForm(prev => {
-            const newProcesos = [...prev.Procesos];
-            newProcesos[index] = { ...newProcesos[index], [name]: value };
-            if (name === "ProcesoRequerido") {
-                const subs = PROCESOS_COORDINADOR[value] || [];
-                newProcesos[index].SubprocesoRequerido = subs.length > 0 ? subs[0] : "";
-                newProcesos[index].ProcesoRequeridoCustom = "";
-                newProcesos[index].SubprocesoRequeridoCustom = "";
-            }
-            if (name === "AreaProceso" && value !== "Otro") newProcesos[index].AreaProcesoCustom = "";
-            return { ...prev, Procesos: newProcesos };
-        });
-    };
-
-    const handleCoordFormChange = (e) => {
-        const { name, value } = e.target;
-        setCoordForm(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleCoordFileChange = (e) => {
-        setCoordEvidenceFiles(Array.from(e.target.files));
-    };
+    const addDemora = () => setCoordForm(p => ({ ...p, Demoras: [...p.Demoras, { Descripcion: "", Fecha: new Date().toISOString().split('T')[0] }] }));
+    const delDemora = (i) => setCoordForm(p => ({ ...p, Demoras: p.Demoras.filter((_, x) => x !== i) }));
+    const setDemora = (i, name, value) => setCoordForm(prev => {
+        const ds = [...prev.Demoras];
+        ds[i] = { ...ds[i], [name]: value };
+        return { ...prev, Demoras: ds };
+    });
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm animate-fade-in sm:p-6">
-            <div className="my-auto w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl shadow-slate-900/25">
+        <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-dye-deep/70 p-3 backdrop-blur-[2px] animate-fade-in sm:p-6">
+            <div className="my-auto w-full max-w-5xl border border-iron-300 bg-white shadow-2xl shadow-dye-deep/30 animate-card-in">
 
-                {/* ENCABEZADO */}
-                <div className="border-b border-slate-200 bg-slate-50 px-7 py-5">
+                {/* Cabecera: identidad de la pieza y lectura de plazo */}
+                <div className="border-b border-iron-200 bg-dye px-6 py-5 text-white">
                     <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
-                            <span className={sectionTitle}>Gestión de coordinación</span>
-                            <h2 className="mt-1 truncate text-xl font-semibold tracking-tight text-slate-900">
+                            <span className="dial text-[10px] text-scribe">Hoja de ruta</span>
+                            <h2 className="mt-1 truncate text-[20px] font-semibold leading-tight tracking-tight">
                                 {d.NombreComponente || "Requerimiento"}
                             </h2>
-                            <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-slate-500">
-                                <span>Solicitud <strong className="tabular font-semibold text-cerrejon-orange">{d.SolicitudID || "—"}</strong></span>
-                                <span>OT <strong className="tabular font-semibold text-slate-700">{d.OT}</strong></span>
-                                <span>Flota <strong className="font-semibold text-slate-700">{d.Flota}</strong></span>
-                                <span>Prioridad cliente <strong className="font-semibold text-slate-700">{d.Prioridad}</strong></span>
+                            <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-white/50">
+                                <span>N.º <strong className="num font-medium text-scribe">{d.SolicitudID || "—"}</strong></span>
+                                <span>OT <strong className="num font-medium text-white">{d.OT}</strong></span>
+                                <span>Flota <strong className="num font-medium text-white">{d.Flota}</strong></span>
+                                <span>Ingreso <strong className="num font-medium text-white">{d.Fecha}</strong></span>
                             </div>
                         </div>
                         <button
-                            onClick={() => setManageModalItem(null)} type="button"
-                            className="shrink-0 rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-200 hover:text-slate-700"
-                            aria-label="Cerrar"
+                            type="button" onClick={() => setManageModalItem(null)} aria-label="Cerrar"
+                            className="shrink-0 rounded-[3px] border border-white/15 p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
                         >
-                            <IconX className="h-5 w-5" />
+                            <IconX className="h-4 w-4" />
                         </button>
                     </div>
                 </div>
 
-                <form id="form-gestion-coord" onSubmit={onSaveCoordResponse} className="thin-scroll max-h-[74vh] space-y-5 overflow-y-auto px-7 py-6">
+                <form id="form-gestion-coord" onSubmit={onSaveCoordResponse} className="thin-scroll max-h-[70vh] overflow-y-auto">
 
-                    {/* ESTADO DE LA SOLICITUD — SOLO LECTURA */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-5 py-4">
+                    {/* Estado de la solicitud + plazo */}
+                    <div className="grid grid-cols-1 gap-5 border-b border-iron-200 bg-iron-50 px-6 py-5 sm:grid-cols-2">
                         <div>
-                            <span className={labelSm}>Estado de la solicitud</span>
-                            <div className="mt-0.5 flex items-center gap-2">
-                                <span className={`${pill} ${estadoSolicitudTono(estadoSolicitud)}`}>{estadoSolicitud}</span>
-                                <span className="text-[11px] text-slate-500">Asignado por el sistema · no editable</span>
+                            <span className={rotuloMini}>Estado de la solicitud</span>
+                            <div className="flex items-center gap-2.5">
+                                <span className={`${marca} ${marcaSolicitud(estadoSol)}`}>{estadoSol}</span>
+                                <span className="text-[11px] text-iron-500">Lo asigna el sistema</span>
                             </div>
-                        </div>
-                        {estadoSolicitud === "Pendiente" && (
-                            <p className="max-w-sm text-[11px] leading-relaxed text-slate-500">
-                                Al guardar cualquier cambio, esta solicitud pasará automáticamente a <strong className="font-semibold text-slate-700">Gestionado</strong>.
+                            <p className="mt-2 text-[12px] leading-relaxed text-iron-500">
+                                {estadoSol === "Pendiente"
+                                    ? "Al guardar, esta solicitud pasa a Gestionado. El cambio no se revierte."
+                                    : "Quedó registrada como gestionada. Nadie puede devolverla a Pendiente."}
                             </p>
-                        )}
+                        </div>
+                        <div className="sm:border-l sm:border-iron-200 sm:pl-5">
+                            <span className={rotuloMini}>Plazo</span>
+                            <ToleranciaDetalle t={tol} />
+                        </div>
                     </div>
 
-                    {/* PROCESOS */}
-                    <Panel
-                        tono="orange"
-                        titulo="Procesos requeridos"
-                        descripcion="Cada proceso lleva su área de ejecución y sus horas hombre estimadas."
+                    {/* Ruta de operaciones: aquí la numeración sí informa, es una secuencia real. */}
+                    <Bloque
+                        titulo="Ruta de procesos"
+                        nota="Cada operación lleva el área donde se ejecuta y las horas hombre que consume."
                         accion={
                             <div className="flex items-center gap-3">
-                                <span className="tabular rounded-md bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600 ring-1 ring-inset ring-slate-200">
-                                    Total {totalHH} H/H
-                                </span>
-                                <button type="button" onClick={handleAddProceso} className="inline-flex items-center gap-1.5 rounded-lg bg-cerrejon-orange px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-cerrejon-orangeDark">
-                                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                                    Agregar proceso
+                                <span className="num text-[12px] text-iron-500">{totalHH} H/H</span>
+                                <button type="button" onClick={addProceso} className={btnMini}>
+                                    <IconMas className="h-3.5 w-3.5" /> Agregar operación
                                 </button>
                             </div>
                         }
                     >
-                        <div className="space-y-3">
-                            {coordForm.Procesos.map((proc, idx) => {
-                                const subsDisponibles = PROCESOS_COORDINADOR[proc.ProcesoRequerido] || [];
+                        <div className="border border-iron-200">
+                            {coordForm.Procesos.map((proc, i) => {
+                                const subs = PROCESOS_COORDINADOR[proc.ProcesoRequerido] || [];
                                 return (
-                                    <div key={idx} className="rounded-lg border border-slate-200 bg-white p-4">
-                                        <div className="mb-3 flex items-center justify-between">
-                                            <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                                                <span className="tabular flex h-5 w-5 items-center justify-center rounded bg-slate-100 text-[10px] font-bold text-slate-600">{idx + 1}</span>
-                                                Proceso
+                                    <div key={i} className={`flex gap-4 p-4 ${i > 0 ? 'border-t border-iron-200' : ''}`}>
+                                        <div className="flex flex-col items-center pt-1">
+                                            <span className="num flex h-6 w-6 items-center justify-center border border-iron-300 bg-iron-50 text-[11px] font-medium text-iron-600">
+                                                {i + 1}
                                             </span>
-                                            {coordForm.Procesos.length > 1 && (
-                                                <button type="button" onClick={() => handleRemoveProceso(idx)} className="rounded p-1 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600" aria-label="Quitar proceso">
-                                                    <IconX className="h-4 w-4" />
-                                                </button>
-                                            )}
+                                            {i < coordForm.Procesos.length - 1 && <span className="mt-1 w-px flex-1 bg-iron-200" aria-hidden="true" />}
                                         </div>
 
-                                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                            <div>
-                                                <label className={labelSm}>Proceso requerido</label>
-                                                <select value={proc.ProcesoRequerido} onChange={(e) => handleProcesoChange(idx, "ProcesoRequerido", e.target.value)} className={inputSm} required>
-                                                    {Object.keys(PROCESOS_COORDINADOR).map(p => <option key={p} value={p}>{p}</option>)}
-                                                </select>
-                                                {proc.ProcesoRequerido === "Otro" && (
-                                                    <input type="text" value={proc.ProcesoRequeridoCustom} onChange={(e) => handleProcesoChange(idx, "ProcesoRequeridoCustom", e.target.value)} className={`${inputSm} mt-2`} placeholder="Especifique el proceso..." required />
-                                                )}
-                                            </div>
+                                        <div className="min-w-0 flex-1">
+                                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                                <div>
+                                                    <label className={rotuloMini}>Proceso</label>
+                                                    <select value={proc.ProcesoRequerido} onChange={(e) => setProceso(i, "ProcesoRequerido", e.target.value)} className={campoMini} required>
+                                                        {Object.keys(PROCESOS_COORDINADOR).map(p => <option key={p} value={p}>{p}</option>)}
+                                                    </select>
+                                                    {proc.ProcesoRequerido === "Otro" && (
+                                                        <input type="text" value={proc.ProcesoRequeridoCustom} onChange={(e) => setProceso(i, "ProcesoRequeridoCustom", e.target.value)} className={`${campoMini} mt-2`} placeholder="¿Qué proceso?" required />
+                                                    )}
+                                                </div>
 
-                                            <div>
-                                                <label className={labelSm}>Subproceso requerido</label>
-                                                {subsDisponibles.length === 0 ? (
-                                                    <input type="text" readOnly value="No requiere subproceso" className={`${inputSm} bg-slate-100 text-slate-400`} />
-                                                ) : subsDisponibles.length === 1 && subsDisponibles[0] === "Otro" ? (
-                                                    <input type="text" value={proc.SubprocesoRequeridoCustom} onChange={(e) => handleProcesoChange(idx, "SubprocesoRequeridoCustom", e.target.value)} className={inputSm} placeholder="Especifique el subproceso..." required />
-                                                ) : (
-                                                    <>
-                                                        <select value={proc.SubprocesoRequerido} onChange={(e) => handleProcesoChange(idx, "SubprocesoRequerido", e.target.value)} className={inputSm} required>
-                                                            {subsDisponibles.map(s => <option key={s} value={s}>{s}</option>)}
-                                                        </select>
-                                                        {proc.SubprocesoRequerido === "Otro" && (
-                                                            <input type="text" value={proc.SubprocesoRequeridoCustom} onChange={(e) => handleProcesoChange(idx, "SubprocesoRequeridoCustom", e.target.value)} className={`${inputSm} mt-2`} placeholder="Especifique el subproceso..." required />
-                                                        )}
-                                                    </>
-                                                )}
-                                            </div>
+                                                <div>
+                                                    <label className={rotuloMini}>Subproceso</label>
+                                                    {subs.length === 0 ? (
+                                                        <input type="text" readOnly value="No requiere" className={`${campoMini} !bg-iron-100 text-iron-400`} />
+                                                    ) : subs.length === 1 && subs[0] === "Otro" ? (
+                                                        <input type="text" value={proc.SubprocesoRequeridoCustom} onChange={(e) => setProceso(i, "SubprocesoRequeridoCustom", e.target.value)} className={campoMini} placeholder="¿Cuál subproceso?" required />
+                                                    ) : (
+                                                        <>
+                                                            <select value={proc.SubprocesoRequerido} onChange={(e) => setProceso(i, "SubprocesoRequerido", e.target.value)} className={campoMini} required>
+                                                                {subs.map(s => <option key={s} value={s}>{s}</option>)}
+                                                            </select>
+                                                            {proc.SubprocesoRequerido === "Otro" && (
+                                                                <input type="text" value={proc.SubprocesoRequeridoCustom} onChange={(e) => setProceso(i, "SubprocesoRequeridoCustom", e.target.value)} className={`${campoMini} mt-2`} placeholder="¿Cuál subproceso?" required />
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </div>
 
-                                            <div>
-                                                <label className={labelSm}>Área de proceso requerido</label>
-                                                <select value={proc.AreaProceso || ""} onChange={(e) => handleProcesoChange(idx, "AreaProceso", e.target.value)} className={inputSm} required>
-                                                    {AREAS_PROCESO.map(a => <option key={a} value={a}>{a}</option>)}
-                                                </select>
-                                                {proc.AreaProceso === "Otro" && (
-                                                    <input type="text" value={proc.AreaProcesoCustom || ""} onChange={(e) => handleProcesoChange(idx, "AreaProcesoCustom", e.target.value)} className={`${inputSm} mt-2`} placeholder="Especifique el área..." required />
-                                                )}
-                                            </div>
+                                                <div>
+                                                    <label className={rotuloMini}>Área de proceso</label>
+                                                    <select value={proc.AreaProceso || ""} onChange={(e) => setProceso(i, "AreaProceso", e.target.value)} className={campoMini} required>
+                                                        {AREAS_PROCESO.map(a => <option key={a} value={a}>{a}</option>)}
+                                                    </select>
+                                                    {proc.AreaProceso === "Otro" && (
+                                                        <input type="text" value={proc.AreaProcesoCustom || ""} onChange={(e) => setProceso(i, "AreaProcesoCustom", e.target.value)} className={`${campoMini} mt-2`} placeholder="¿Cuál área?" required />
+                                                    )}
+                                                </div>
 
-                                            <div>
-                                                <label className={labelSm}>Horas hombre estimado</label>
-                                                <div className="relative">
-                                                    <input
-                                                        type="number" min="0" step="0.5"
-                                                        value={proc.EstimadoHorasHombre ?? 0}
-                                                        onChange={(e) => handleProcesoChange(idx, "EstimadoHorasHombre", e.target.value)}
-                                                        className={`${inputSm} tabular pr-12`} required
-                                                    />
-                                                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-slate-400">H/H</span>
+                                                <div>
+                                                    <label className={rotuloMini}>Horas hombre estimado</label>
+                                                    <div className="relative">
+                                                        <input
+                                                            type="number" min="0" step="0.5" value={proc.EstimadoHorasHombre ?? 0}
+                                                            onChange={(e) => setProceso(i, "EstimadoHorasHombre", e.target.value)}
+                                                            className={`${campoMini} num sin-spinner !pr-11`} required
+                                                        />
+                                                        <span className="dial pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-iron-400">H/H</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
+
+                                        {coordForm.Procesos.length > 1 && (
+                                            <button
+                                                type="button" onClick={() => delProceso(i)} aria-label={`Quitar operación ${i + 1}`}
+                                                className="h-fit shrink-0 rounded-[3px] p-1.5 text-iron-400 transition-colors hover:bg-alarm-wash hover:text-alarm"
+                                            >
+                                                <IconX className="h-4 w-4" />
+                                            </button>
+                                        )}
                                     </div>
                                 );
                             })}
                         </div>
-                    </Panel>
+                    </Bloque>
 
-                    {/* SEGUIMIENTO */}
-                    <Panel titulo="Seguimiento del componente">
+                    <Bloque titulo="Seguimiento" nota="La prioridad que fije aquí es la que manda en la cola y en las métricas.">
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
                             <div>
-                                <label className={labelSm}>Estado del componente</label>
-                                <select name="Estado" value={coordForm.Estado} onChange={handleCoordFormChange} className={inputSm} required>
-                                    {ESTADOS_COORDINADOR.map(est => <option key={est} value={est}>{est}</option>)}
+                                <label className={rotulo}>Estado del componente</label>
+                                <select name="Estado" value={coordForm.Estado} onChange={setCampo} className={campoMini} required>
+                                    {ESTADOS_COORDINADOR.map(e => <option key={e} value={e}>{e}</option>)}
                                 </select>
                             </div>
                             <div>
-                                <label className={labelSm}>Prioridad del coordinador</label>
-                                <select name="PrioridadCoordinador" value={coordForm.PrioridadCoordinador} onChange={handleCoordFormChange} className={inputSm} required>
+                                <label className={rotulo}>Prioridad del coordinador</label>
+                                <select name="PrioridadCoordinador" value={coordForm.PrioridadCoordinador} onChange={setCampo} className={campoMini} required>
                                     {Object.keys(PRIORIDADES).map(p => (
                                         <option key={p} value={p}>{p} — {PRIORIDADES[p]} {PRIORIDADES[p] === 1 ? "día" : "días"}</option>
                                     ))}
                                 </select>
-                                <p className="mt-1 text-[10px] text-slate-500">Es la prioridad que rige las métricas.</p>
                             </div>
                             <div>
-                                <label className={labelSm}>Fecha estimada</label>
-                                <input type="date" name="FechaEstimado" value={coordForm.FechaEstimado} onChange={handleCoordFormChange} className={`${inputSm} tabular`} required />
+                                <label className={rotulo}>Fecha estimada</label>
+                                <input type="date" name="FechaEstimado" value={coordForm.FechaEstimado} onChange={setCampo} className={`${campoMini} num`} required />
                             </div>
                             <div>
-                                <label className={labelSm}>Notificación a cliente</label>
-                                <select name="NotificacionCliente" value={coordForm.NotificacionCliente} onChange={handleCoordFormChange} className={inputSm} required>
+                                <label className={rotulo}>Se avisó al cliente</label>
+                                <select name="NotificacionCliente" value={coordForm.NotificacionCliente} onChange={setCampo} className={campoMini} required>
                                     <option value="Si">Sí</option>
                                     <option value="No">No</option>
                                 </select>
                             </div>
                             <div className="md:col-span-2 lg:col-span-4">
-                                <label className={labelSm}>Complemento MMHH</label>
-                                <input type="text" name="ComplementoMMHH" value={coordForm.ComplementoMMHH} onChange={handleCoordFormChange} className={inputSm} placeholder="Información técnica complementaria..." />
+                                <label className={rotulo}>Complemento MMHH</label>
+                                <input type="text" name="ComplementoMMHH" value={coordForm.ComplementoMMHH} onChange={setCampo} className={campoMini} placeholder="Información técnica complementaria" />
                             </div>
                         </div>
-                    </Panel>
+                    </Bloque>
 
-                    {/* HISTORIAL DE COMENTARIOS */}
-                    <Panel
+                    {/* Historial: sellos sobre la hoja de ruta. No se editan ni se borran. */}
+                    <Bloque
                         titulo="Historial de comentarios"
-                        descripcion="Registro permanente de la gestión. Los comentarios no se pueden editar ni eliminar."
-                        accion={
-                            <span className="tabular rounded-md bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                                {historial.length} registro{historial.length === 1 ? '' : 's'}
-                            </span>
-                        }
+                        nota="Queda para siempre, con quién lo escribió y cuándo. No se edita ni se elimina."
+                        accion={<span className="num text-[12px] text-iron-500">{historial.length}</span>}
                     >
                         {historial.length === 0 ? (
-                            <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-xs text-slate-500">
-                                Aún no hay comentarios registrados para este requerimiento.
+                            <p className="border border-dashed border-iron-300 bg-iron-50 px-4 py-5 text-center text-[12px] text-iron-500">
+                                Todavía nadie ha comentado esta solicitud. El primer comentario abre el historial.
                             </p>
                         ) : (
-                            <ol className="thin-scroll max-h-64 space-y-2.5 overflow-y-auto pr-1">
+                            <ol className="thin-scroll max-h-64 space-y-px overflow-y-auto border border-iron-200 bg-iron-200">
                                 {historial.map((c, i) => (
-                                    <li
-                                        key={i}
-                                        className={`rounded-lg border px-4 py-3 ${c.EsCierre ? 'border-emerald-300 bg-emerald-50' : 'border-slate-200 bg-white'}`}
-                                    >
-                                        <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                                            <span className="text-[12px] font-semibold text-slate-800">{c.Autor || "Coordinador"}</span>
-                                            {c.EsCierre && (
-                                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
-                                                    <svg className="h-2.5 w-2.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.3 3.29 6.8-6.79a1 1 0 011.9.5z" clipRule="evenodd" /></svg>
-                                                    Cierre
-                                                </span>
-                                            )}
-                                            <span className="tabular ml-auto text-[11px] text-slate-400">{c.Fecha}</span>
+                                    <li key={i} className={`px-4 py-3 ${c.EsCierre ? 'border-l-2 border-spec bg-spec-wash' : 'bg-white'}`}>
+                                        <div className="mb-1.5 flex flex-wrap items-baseline gap-2">
+                                            <span className="text-[12px] font-semibold text-iron-800">{c.Autor || "Coordinador"}</span>
+                                            {c.EsCierre && <span className="dial text-[9px] text-spec">Cierre</span>}
+                                            <span className="num ml-auto text-[11px] text-iron-400">{c.Fecha}</span>
                                         </div>
-                                        <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">{c.Texto}</p>
+                                        <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-iron-700">{c.Texto}</p>
                                     </li>
                                 ))}
                             </ol>
                         )}
 
-                        <div className="mt-4 border-t border-slate-200 pt-4">
-                            <label className={labelSm}>Nuevo comentario</label>
+                        <div className="mt-4">
+                            <label className={rotulo}>Escribir un comentario</label>
                             <textarea
-                                name="NuevoComentario" value={coordForm.NuevoComentario} onChange={handleCoordFormChange}
-                                rows="3" className={`${inputSm} resize-none`}
-                                placeholder="Describa la gestión realizada, hallazgos o acuerdos con el cliente..."
+                                name="NuevoComentario" value={coordForm.NuevoComentario} onChange={setCampo}
+                                rows="3" className={`${campoMini} resize-y`}
+                                placeholder="Qué se hizo, qué se encontró o qué se acordó con el cliente."
                             />
-                            <p className="mt-1.5 text-[11px] text-slate-500">
-                                Se registrará a nombre de <strong className="font-semibold text-slate-700">{userAuth.name}</strong> con la fecha de hoy.
+                            <p className="mt-1.5 text-[11px] text-iron-500">
+                                Se firma como <strong className="font-semibold text-iron-700">{userAuth.name}</strong> con la fecha de hoy.
                             </p>
                         </div>
-                    </Panel>
+                    </Bloque>
 
-                    {/* COMENTARIO DE CIERRE */}
                     {enCierre && (
-                        <Panel
-                            tono="emerald"
+                        <Bloque
                             titulo="Comentario de cierre"
-                            descripcion={`Obligatorio para dejar el componente en "${coordForm.Estado}". Queda marcado de forma diferenciada en el historial.`}
+                            nota={`Obligatorio para dejar el componente en "${coordForm.Estado}". Queda marcado aparte en el historial.`}
                         >
-                            {comentarioCierreExistente ? (
-                                <div className="rounded-lg border border-emerald-300 bg-white px-4 py-3">
-                                    <div className="mb-1.5 flex items-center gap-2">
-                                        <span className="inline-flex items-center rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">Cierre registrado</span>
-                                        <span className="tabular ml-auto text-[11px] text-slate-400">{comentarioCierreExistente.Fecha}</span>
+                            {cierrePrevio ? (
+                                <div className="border-l-2 border-spec bg-spec-wash px-4 py-3">
+                                    <div className="mb-1.5 flex items-baseline gap-2">
+                                        <span className="dial text-[9px] text-spec">Cierre registrado</span>
+                                        <span className="num ml-auto text-[11px] text-iron-400">{cierrePrevio.Fecha}</span>
                                     </div>
-                                    <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-slate-700">{comentarioCierreExistente.Texto}</p>
-                                    <p className="mt-2 text-[11px] text-slate-500">Por {comentarioCierreExistente.Autor}</p>
+                                    <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-iron-700">{cierrePrevio.Texto}</p>
+                                    <p className="mt-2 text-[11px] text-iron-500">Por {cierrePrevio.Autor}</p>
                                 </div>
                             ) : (
                                 <textarea
-                                    name="ComentarioCierre" value={coordForm.ComentarioCierre} onChange={handleCoordFormChange}
-                                    rows="4" className={`${input} resize-none border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/15`}
-                                    placeholder="Detalle el trabajo ejecutado, resultado final y condiciones de entrega del componente..."
+                                    name="ComentarioCierre" value={coordForm.ComentarioCierre} onChange={setCampo}
+                                    rows="4" className={`${campo} resize-y border-l-2 !border-l-spec`}
+                                    placeholder="Trabajo ejecutado, resultado final y condiciones en que se entrega el componente."
                                     required
                                 />
                             )}
-                        </Panel>
+                        </Bloque>
                     )}
 
-                    {/* DEMORAS */}
-                    <Panel
-                        tono="red"
+                    <Bloque
                         titulo="Demoras"
-                        descripcion="Eventos que afectaron el cumplimiento del tiempo estimado."
-                        accion={
-                            <button type="button" onClick={handleAddDemora} className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-50">
-                                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
-                                Agregar demora
-                            </button>
-                        }
+                        nota="Lo que impidió cumplir el plazo estimado."
+                        accion={<button type="button" onClick={addDemora} className={btnMini}><IconMas className="h-3.5 w-3.5" /> Agregar demora</button>}
                     >
                         {coordForm.Demoras.length === 0 ? (
-                            <p className="rounded-lg border border-dashed border-red-200 bg-white/60 px-4 py-5 text-center text-xs text-slate-500">
+                            <p className="border border-dashed border-iron-300 bg-iron-50 px-4 py-5 text-center text-[12px] text-iron-500">
                                 Sin demoras registradas.
                             </p>
                         ) : (
-                            <div className="space-y-2.5">
-                                {coordForm.Demoras.map((dem, idx) => (
-                                    <div key={idx} className="flex items-end gap-3 rounded-lg border border-red-200 bg-white p-3">
+                            <div className="space-y-2">
+                                {coordForm.Demoras.map((dem, i) => (
+                                    <div key={i} className="flex items-end gap-3 border-l-2 border-alarm bg-alarm-wash/50 p-3">
                                         <div className="flex-1">
-                                            <label className={labelSm}>Descripción {idx + 1}</label>
-                                            <input type="text" value={dem.Descripcion} onChange={(e) => handleDemoraChange(idx, "Descripcion", e.target.value)} className={inputSm} placeholder="Describa la demora..." required />
+                                            <label className={rotuloMini}>Qué pasó</label>
+                                            <input type="text" value={dem.Descripcion} onChange={(e) => setDemora(i, "Descripcion", e.target.value)} className={campoMini} placeholder="Describa la demora" required />
                                         </div>
                                         <div className="w-40">
-                                            <label className={labelSm}>Fecha</label>
-                                            <input type="date" value={dem.Fecha} onChange={(e) => handleDemoraChange(idx, "Fecha", e.target.value)} className={`${inputSm} tabular`} required />
+                                            <label className={rotuloMini}>Fecha</label>
+                                            <input type="date" value={dem.Fecha} onChange={(e) => setDemora(i, "Fecha", e.target.value)} className={`${campoMini} num`} required />
                                         </div>
-                                        <button type="button" onClick={() => handleRemoveDemora(idx)} className="mb-1 rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600" aria-label="Quitar demora">
+                                        <button type="button" onClick={() => delDemora(i)} aria-label="Quitar demora" className="mb-1 rounded-[3px] p-1.5 text-iron-400 transition-colors hover:bg-white hover:text-alarm">
                                             <IconX className="h-4 w-4" />
                                         </button>
                                     </div>
                                 ))}
                             </div>
                         )}
-                    </Panel>
+                    </Bloque>
 
-                    {/* EVIDENCIAS */}
-                    <Panel titulo="Evidencias de coordinación" descripcion="Se anexan al historial; las cargas anteriores se conservan.">
-                        <input
-                            type="file" accept="image/*" multiple onChange={handleCoordFileChange} ref={coordFileInputRef}
-                            className="block w-full cursor-pointer text-[13px] text-slate-600 file:mr-4 file:cursor-pointer file:rounded-lg file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-[13px] file:font-semibold file:text-white hover:file:bg-slate-700"
-                        />
-                        {coordEvidenceFiles.length > 0 && (
-                            <p className="mt-2.5 text-[11px] font-medium text-emerald-700">
-                                {coordEvidenceFiles.length} archivo{coordEvidenceFiles.length > 1 ? 's' : ''} listo{coordEvidenceFiles.length > 1 ? 's' : ''} para anexar
-                            </p>
-                        )}
-                    </Panel>
+                    <Bloque titulo="Evidencias" nota="Se suman a las que ya tenga la solicitud; nada se reemplaza." ultimo>
+                        <div className="border border-dashed border-iron-300 bg-iron-50 px-4 py-4">
+                            <input
+                                type="file" accept="image/*" multiple onChange={(e) => setCoordEvidenceFiles(Array.from(e.target.files))} ref={fileRef}
+                                className="block w-full cursor-pointer text-[13px] text-iron-600 file:mr-4 file:cursor-pointer file:rounded-[3px] file:border-0 file:bg-dye file:px-4 file:py-2 file:font-sans file:text-[13px] file:font-semibold file:text-white hover:file:bg-dye-mid"
+                            />
+                            {coordEvidenceFiles.length > 0 && (
+                                <p className="mt-2 text-[12px] text-spec">
+                                    {coordEvidenceFiles.length} {coordEvidenceFiles.length > 1 ? 'fotos listas' : 'foto lista'} para anexar.
+                                </p>
+                            )}
+                        </div>
+                    </Bloque>
                 </form>
 
-                {/* PIE FIJO */}
                 {error && (
-                    <div className="flex items-start gap-2.5 border-t border-red-200 bg-red-50 px-7 py-3">
-                        <svg className="mt-0.5 h-4 w-4 shrink-0 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M18 10A8 8 0 112 10a8 8 0 0116 0zm-9 4a1 1 0 112 0 1 1 0 01-2 0zm1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    <div className="flex items-start gap-2.5 border-t border-alarm/30 bg-alarm-wash px-6 py-3">
+                        <svg className="mt-px h-4 w-4 shrink-0 text-alarm" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7">
+                            <circle cx="10" cy="10" r="7.5" /><path d="M10 6v5M10 13.5v.5" strokeLinecap="square" />
                         </svg>
-                        <p className="text-[12px] font-medium leading-relaxed text-red-800">{error}</p>
+                        <p className="text-[12px] font-medium leading-relaxed text-alarm">{error}</p>
                     </div>
                 )}
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-7 py-4">
-                    <p className="text-[11px] text-slate-500">
-                        Registrado por <strong className="font-semibold text-slate-700">{userAuth.name}</strong>
+
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-iron-200 bg-iron-50 px-6 py-4">
+                    <p className="text-[11px] text-iron-500">
+                        Firma <strong className="font-semibold text-iron-700">{userAuth.name}</strong>
                     </p>
                     <div className="flex gap-3">
-                        <button type="button" onClick={() => setManageModalItem(null)} className={btnSecondary}>Cancelar</button>
-                        <button type="submit" form="form-gestion-coord" disabled={loading} className={btnPrimary}>
+                        <button type="button" onClick={() => setManageModalItem(null)} className={btnLinea}>Cancelar</button>
+                        <button type="submit" form="form-gestion-coord" disabled={loading} className={btn}>
                             {loading && (
                                 <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
+                                    <circle className="opacity-30" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
                                 </svg>
                             )}
                             {loading ? "Guardando..." : "Guardar gestión"}

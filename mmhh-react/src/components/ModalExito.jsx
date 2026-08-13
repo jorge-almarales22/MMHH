@@ -1,15 +1,17 @@
 import React, { useEffect, useState } from 'react';
+import { btn, btnMini, dial } from '../ui';
 
 /**
- * Confirmacion de solicitud creada. El ID es el dato que el usuario debe
- * llevarse, asi que ocupa el centro optico y se puede copiar de un clic.
+ * Confirmación de ingreso. El número es lo único que el solicitante debe
+ * llevarse, así que se estampa: entra a escala grande y asienta, como el
+ * troquel que marca la pieza al recibirla.
  */
 export default function ModalExito({ data, onClose }) {
     const [copiado, setCopiado] = useState(false);
 
     useEffect(() => {
         if (!data) return;
-        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        const onKey = (e) => e.key === 'Escape' && onClose();
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [data, onClose]);
@@ -18,87 +20,78 @@ export default function ModalExito({ data, onClose }) {
 
     if (!data) return null;
 
-    const copiarID = async () => {
+    const copiar = async () => {
         try {
             await navigator.clipboard.writeText(data.id);
             setCopiado(true);
             setTimeout(() => setCopiado(false), 2000);
-        } catch {
-            setCopiado(false);
-        }
+        } catch { setCopiado(false); }
     };
 
     return (
         <div
-            className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in"
-            onClick={onClose}
-            role="dialog"
-            aria-modal="true"
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-dye-deep/75 p-4 backdrop-blur-[2px] animate-fade-in"
+            onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="exito-titulo"
         >
             <div
-                className="w-full max-w-md rounded-2xl bg-white shadow-2xl shadow-slate-900/25 animate-pop-in overflow-hidden"
+                className="w-full max-w-sm border border-iron-300 bg-white shadow-2xl shadow-dye-deep/40 animate-card-in"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="px-8 pt-9 pb-7 text-center">
-                    <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 ring-8 ring-emerald-50/60">
-                        <svg className="h-9 w-9 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M4.5 12.5l5 5 10-11" strokeDasharray="48" strokeDashoffset="48" className="animate-draw-check" />
-                        </svg>
-                    </div>
-
-                    <h3 className="text-xl font-bold tracking-tight text-slate-900">Solicitud registrada</h3>
-                    <p className="mt-1.5 text-sm text-slate-500">
-                        Su requerimiento fue enviado a Coordinación de MMHH.
-                    </p>
-
-                    <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-5 py-5">
-                        <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                            Número de solicitud
-                        </span>
-                        <div className="mt-2 flex items-center justify-center gap-3">
-                            <span className="tabular text-4xl font-bold tracking-[0.12em] text-cerrejon-orange">
-                                {data.id}
-                            </span>
-                            <button
-                                type="button"
-                                onClick={copiarID}
-                                title="Copiar número"
-                                className="rounded-lg border border-slate-300 bg-white p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-800"
-                            >
-                                {copiado ? (
-                                    <svg className="h-4 w-4 text-emerald-600" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0L3.3 9.7a1 1 0 111.4-1.4l3.3 3.29 6.8-6.79a1 1 0 011.9.5z" clipRule="evenodd" /></svg>
-                                ) : (
-                                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M7 3a2 2 0 00-2 2v8a2 2 0 002 2h6a2 2 0 002-2V5a2 2 0 00-2-2H7z" /><path d="M3 7a2 2 0 012-2v9a3 3 0 003 3h6a2 2 0 01-2 2H7a4 4 0 01-4-4V7z" /></svg>
-                                )}
-                            </button>
-                        </div>
-                        <p className="mt-2 text-[11px] font-medium text-slate-500">
-                            {copiado ? "Copiado al portapapeles" : "Consérvelo para hacer seguimiento"}
-                        </p>
-                    </div>
-
-                    {(data.ot || data.componente) && (
-                        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-xs text-slate-500">
-                            {data.ot && <span>OT <strong className="tabular font-semibold text-slate-700">{data.ot}</strong></span>}
-                            {data.componente && <span className="max-w-[16rem] truncate">{data.componente}</span>}
-                        </div>
-                    )}
-
-                    <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-orange-50 px-3 py-1.5 text-[11px] font-semibold text-orange-700 ring-1 ring-inset ring-orange-200">
-                        <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
-                        Estado de la solicitud: Pendiente
-                    </div>
+                <div className="border-b border-iron-200 bg-dye px-6 py-3">
+                    <span className="dial text-[10px] text-scribe">Solicitud registrada</span>
                 </div>
 
-                <div className="border-t border-slate-200 bg-slate-50 px-8 py-4">
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        className="w-full rounded-lg bg-cerrejon-orange px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-cerrejon-orangeDark focus:outline-none focus:ring-4 focus:ring-cerrejon-orange/25"
-                        autoFocus
-                    >
-                        Entendido
-                    </button>
+                <div className="px-6 py-7 text-center">
+                    <h3 id="exito-titulo" className={`${dial} !text-iron-500`}>Número de solicitud</h3>
+
+                    <div className="mt-3 animate-stamp">
+                        <span className="num inline-block border-y-2 border-brand px-4 py-1.5 text-[44px] font-medium leading-none tracking-[0.08em] text-brand-deep">
+                            {data.id}
+                        </span>
+                    </div>
+
+                    <div className="mt-4 flex justify-center">
+                        <button type="button" onClick={copiar} className={btnMini}>
+                            {copiado ? (
+                                <>
+                                    <svg className="h-3.5 w-3.5 text-spec" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 10.5l4 4 8-9" strokeLinecap="square" /></svg>
+                                    Copiado
+                                </>
+                            ) : (
+                                <>
+                                    <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="7" y="3" width="10" height="12" /><path d="M13 17H3V5" strokeLinecap="square" /></svg>
+                                    Copiar número
+                                </>
+                            )}
+                        </button>
+                    </div>
+
+                    <p className="mt-5 text-[13px] leading-relaxed text-iron-600">
+                        Anote este número: con él consulta el avance de la pieza en el taller.
+                    </p>
+
+                    <dl className="mt-5 space-y-px border border-iron-200 bg-iron-200 text-left">
+                        {data.ot && (
+                            <div className="flex justify-between gap-3 bg-white px-3 py-2">
+                                <dt className="dial text-[10px] text-iron-500">OT</dt>
+                                <dd className="num text-[12px] font-medium text-iron-800">{data.ot}</dd>
+                            </div>
+                        )}
+                        {data.componente && (
+                            <div className="flex justify-between gap-3 bg-white px-3 py-2">
+                                <dt className="dial text-[10px] text-iron-500">Componente</dt>
+                                <dd className="truncate text-[12px] font-medium text-iron-800">{data.componente}</dd>
+                            </div>
+                        )}
+                        <div className="flex justify-between gap-3 bg-white px-3 py-2">
+                            <dt className="dial text-[10px] text-iron-500">Estado</dt>
+                            <dd className="text-[12px] font-medium text-brand-deep">Pendiente</dd>
+                        </div>
+                    </dl>
+                </div>
+
+                <div className="border-t border-iron-200 bg-iron-50 px-6 py-4">
+                    <button type="button" onClick={onClose} className={`${btn} w-full`} autoFocus>Listo</button>
                 </div>
             </div>
         </div>

@@ -3,7 +3,7 @@ import {
     SUPERINTENDENCIAS, PRIORIDADES, FLOTAS, COORDINADORES_LISTA, AREAS_ENTREGA,
     ESTADOS_COORDINADOR, ESTADOS_SOLICITUD, AREAS_PROCESO
 } from '../constants';
-import { card, sectionTitle } from '../ui';
+import { placa, dial, btnLinea } from '../ui';
 import { BarraFiltros, SelectFiltro, TextoFiltro, FechaFiltro } from './Filtros';
 import TablaSolicitudes from './TablaSolicitudes';
 import { compararPorFecha, compararPorPrioridadYFecha } from '../utils/helpers';
@@ -17,62 +17,67 @@ export const dbFilterVacio = {
 const VISTAS = [
     {
         key: 'historico',
-        label: 'Registro histórico',
-        detalle: 'Ordenado por fecha de solicitud, de la más reciente a la más antigua.',
+        label: 'Registro',
+        detalle: 'Todas las solicitudes por fecha de ingreso, de la más reciente a la más antigua.',
         orden: compararPorFecha
     },
     {
         key: 'atencion',
-        label: 'Cola de atención',
-        detalle: 'Ordenado por prioridad del coordinador y, a igual prioridad, por la solicitud más antigua.',
+        label: 'Orden de atención',
+        detalle: 'Manda la prioridad del coordinador; a igual prioridad, entra primero la solicitud más antigua.',
         orden: compararPorPrioridadYFecha
     }
 ];
 
-function Kpi({ valor, etiqueta, acento }) {
+/* Lectura de instrumento: cifra en mono, rotulo grabado debajo. */
+function Lectura({ valor, etiqueta, sufijo, tono = "text-iron-900", filo = "border-iron-200" }) {
     return (
-        <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-            <div className={`tabular text-2xl font-semibold leading-none ${acento}`}>{valor}</div>
-            <div className="mt-1.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">{etiqueta}</div>
+        <div className={`border-l-2 pl-3 ${filo}`}>
+            <div className={`num text-[22px] font-medium leading-none ${tono}`}>
+                {valor}<span className="text-[13px] text-iron-400">{sufijo}</span>
+            </div>
+            <div className="dial mt-1.5 text-[10px] text-iron-500">{etiqueta}</div>
         </div>
     );
 }
 
 export default function TabBaseDatos({ dbFilter, setDbFilter, items, resumen, onDownloadCSV, onViewDetails, onOpenManageModal, userAuth }) {
     const [vista, setVista] = useState('historico');
-    const set = (campo) => (e) => setDbFilter(prev => ({ ...prev, [campo]: e.target.value }));
+    const set = (c) => (e) => setDbFilter(prev => ({ ...prev, [c]: e.target.value }));
     const activos = Object.values(dbFilter).filter(Boolean).length;
 
     const vistaActual = VISTAS.find(v => v.key === vista);
     const ordenados = [...items].sort(vistaActual.orden);
 
     return (
-        <div className={`${card} w-full overflow-hidden`}>
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 px-6 py-5">
+        <div className={`${placa} w-full animate-card-in`}>
+            <div className="flex flex-wrap items-end justify-between gap-4 border-b border-iron-200 px-5 py-4">
                 <div>
-                    <span className={sectionTitle}>Módulo Base de Datos</span>
-                    <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">Consolidado de requerimientos</h2>
+                    <span className={dial}>Base de datos</span>
+                    <h2 className="mt-1 text-[19px] font-semibold leading-tight tracking-tight text-iron-900">
+                        Consolidado de requerimientos
+                    </h2>
                 </div>
-                <button onClick={onDownloadCSV} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-[13px] font-semibold text-slate-700 transition-colors hover:bg-slate-50">
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                <button onClick={onDownloadCSV} className={`${btnLinea} no-print`}>
+                    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7">
+                        <path d="M10 2.5v10m0 0l-3.5-3.5M10 12.5l3.5-3.5M3.5 15.5v2h13v-2" strokeLinecap="square" />
                     </svg>
                     Descargar CSV
                 </button>
             </div>
 
-            {/* RESUMEN SOBRE LO FILTRADO */}
-            <div className="grid grid-cols-2 gap-3 border-b border-slate-200 bg-slate-50/60 px-6 py-4 sm:grid-cols-3 lg:grid-cols-6">
-                <Kpi valor={resumen.total} etiqueta="Solicitudes" acento="text-slate-900" />
-                <Kpi valor={resumen.pendientes} etiqueta="Pendientes" acento="text-orange-600" />
-                <Kpi valor={resumen.enProceso} etiqueta="En gestión" acento="text-sky-600" />
-                <Kpi valor={resumen.entregadas} etiqueta="Entregadas" acento="text-emerald-600" />
-                <Kpi valor={resumen.criticas} etiqueta="Críticas P0–P02" acento="text-red-600" />
-                <Kpi valor={resumen.horas} etiqueta="H/H estimadas" acento="text-slate-900" />
+            {/* Tablero de lecturas sobre el conjunto filtrado */}
+            <div className="grid grid-cols-2 gap-x-5 gap-y-5 border-b border-iron-200 px-5 py-5 sm:grid-cols-3 lg:grid-cols-6">
+                <Lectura valor={resumen.total} etiqueta="Solicitudes" />
+                <Lectura valor={resumen.pendientes} etiqueta="Sin gestionar" tono="text-brand-deep" filo="border-brand/50" />
+                <Lectura valor={resumen.enProceso} etiqueta="En taller" tono="text-dye-mid" filo="border-dye-line/50" />
+                <Lectura valor={resumen.entregadas} etiqueta="Entregadas" tono="text-spec" filo="border-spec/50" />
+                <Lectura valor={resumen.fuera} etiqueta="Fuera de plazo" tono="text-alarm" filo="border-alarm/60" />
+                <Lectura valor={resumen.horas} sufijo=" h" etiqueta="H/H comprometidas" />
             </div>
 
             <BarraFiltros activos={activos} onLimpiar={() => setDbFilter({ ...dbFilterVacio })}>
-                <TextoFiltro titulo="Buscar" value={dbFilter.search} onChange={set('search')} placeholder="ID, OT, componente..." ancho="col-span-2" />
+                <TextoFiltro titulo="Buscar" value={dbFilter.search} onChange={set('search')} placeholder="N.º, OT, componente..." ancho="col-span-2" />
                 <SelectFiltro titulo="Estado solicitud" value={dbFilter.estadoSolicitud} onChange={set('estadoSolicitud')} opciones={ESTADOS_SOLICITUD} />
                 <SelectFiltro titulo="Estado componente" value={dbFilter.estadoComponente} onChange={set('estadoComponente')} opciones={ESTADOS_COORDINADOR} />
                 <SelectFiltro titulo="Prioridad coordinador" value={dbFilter.prioridadCoordinador} onChange={set('prioridadCoordinador')} opciones={Object.keys(PRIORIDADES)} todos="Todas" />
@@ -80,32 +85,31 @@ export default function TabBaseDatos({ dbFilter, setDbFilter, items, resumen, on
                 <SelectFiltro titulo="Área de proceso" value={dbFilter.areaProceso} onChange={set('areaProceso')} opciones={AREAS_PROCESO} todos="Todas" />
                 <SelectFiltro titulo="Superintendencia" value={dbFilter.superintendencia} onChange={set('superintendencia')} opciones={SUPERINTENDENCIAS.filter(Boolean)} todos="Todas" />
                 <SelectFiltro titulo="Flota" value={dbFilter.flota} onChange={set('flota')} opciones={FLOTAS} todos="Todas" />
-                <SelectFiltro titulo="Coord. recibe" value={dbFilter.coordinadorRecibe} onChange={set('coordinadorRecibe')} opciones={COORDINADORES_LISTA} />
-                <SelectFiltro titulo="Área entrega" value={dbFilter.areaEntrega} onChange={set('areaEntrega')} opciones={AREAS_ENTREGA} todos="Todas" />
-                <FechaFiltro titulo="Desde" value={dbFilter.fechaDesde} onChange={set('fechaDesde')} />
-                <FechaFiltro titulo="Hasta" value={dbFilter.fechaHasta} onChange={set('fechaHasta')} />
+                <SelectFiltro titulo="Coordinador recibe" value={dbFilter.coordinadorRecibe} onChange={set('coordinadorRecibe')} opciones={COORDINADORES_LISTA} />
+                <SelectFiltro titulo="Área de entrega" value={dbFilter.areaEntrega} onChange={set('areaEntrega')} opciones={AREAS_ENTREGA} todos="Todas" />
+                <FechaFiltro titulo="Ingreso desde" value={dbFilter.fechaDesde} onChange={set('fechaDesde')} />
+                <FechaFiltro titulo="Ingreso hasta" value={dbFilter.fechaHasta} onChange={set('fechaHasta')} />
             </BarraFiltros>
 
-            {/* PESTANAS DE ORDENAMIENTO */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6">
-                <div className="flex">
+            <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-b border-iron-200 px-5">
+                <div className="flex gap-6">
                     {VISTAS.map(v => (
                         <button
                             key={v.key} type="button" onClick={() => setVista(v.key)}
-                            className={`-mb-px border-b-2 px-4 py-3 text-[13px] font-semibold transition-colors ${vista === v.key
-                                ? 'border-cerrejon-orange text-slate-900'
-                                : 'border-transparent text-slate-500 hover:text-slate-800'}`}
+                            className={`dial -mb-px border-b-2 py-3 text-[10px] transition-colors ${vista === v.key
+                                ? 'border-brand text-iron-900'
+                                : 'border-transparent text-iron-400 hover:text-iron-700'}`}
                         >
                             {v.label}
                         </button>
                     ))}
                 </div>
-                <span className="tabular py-3 text-[11px] font-medium text-slate-500">
-                    {ordenados.length} registro{ordenados.length === 1 ? '' : 's'}
+                <span className="num py-3 text-[12px] text-iron-400">
+                    {ordenados.length} {ordenados.length === 1 ? 'registro' : 'registros'}
                 </span>
             </div>
 
-            <p className="border-b border-slate-100 bg-white px-6 py-2.5 text-[11px] text-slate-500">
+            <p className="border-b border-iron-100 px-5 py-2.5 text-[12px] text-iron-500">
                 {vistaActual.detalle}
             </p>
 
@@ -114,7 +118,7 @@ export default function TabBaseDatos({ dbFilter, setDbFilter, items, resumen, on
                 onViewDetails={onViewDetails}
                 onOpenManageModal={onOpenManageModal}
                 puedeGestionar={userAuth.isCoordinator}
-                mostrarRanking={vista === 'atencion'}
+                mostrarOrden={vista === 'atencion'}
             />
         </div>
     );

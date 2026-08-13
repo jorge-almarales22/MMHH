@@ -1,23 +1,22 @@
 import React, { useRef } from 'react';
 import { FLOTAS, SOPORTE_OPCIONES, PRIORIDADES, SUPERINTENDENCIAS, COORDINADORES_LISTA, AREAS_ENTREGA } from '../constants';
-import { card, input, label, btnPrimary, sectionTitle } from '../ui';
+import { placa, campo, rotulo, btn, dial } from '../ui';
 
-function Seccion({ paso, titulo, descripcion, children }) {
+/* Riel de rótulos a la izquierda, campos a la derecha: la hoja de ruta impresa
+   que acompaña a la pieza tiene exactamente esa estructura. */
+function Bloque({ titulo, nota, children, ultimo = false }) {
     return (
-        <section className="border-t border-slate-200 pt-7 first:border-t-0 first:pt-0">
-            <div className="mb-5 flex items-baseline gap-3">
-                <span className="tabular flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-cerrejon-orangeSoft text-[11px] font-bold text-cerrejon-orangeDark">
-                    {paso}
-                </span>
-                <div>
-                    <h3 className="text-sm font-semibold tracking-tight text-slate-900">{titulo}</h3>
-                    {descripcion && <p className="mt-0.5 text-xs text-slate-500">{descripcion}</p>}
-                </div>
+        <section className={`grid grid-cols-1 gap-x-10 gap-y-4 px-5 py-6 lg:grid-cols-[190px_1fr] lg:px-7 ${ultimo ? '' : 'border-b border-iron-200'}`}>
+            <div>
+                <h3 className={dial}>{titulo}</h3>
+                {nota && <p className="mt-1.5 text-[12px] leading-relaxed text-iron-500">{nota}</p>}
             </div>
-            {children}
+            <div>{children}</div>
         </section>
     );
 }
+
+const Obligatorio = () => <span className="text-brand" aria-hidden="true">*</span>;
 
 export default function TabCliente({ formData, setFormData, evidenceFiles, loading, onFileChange, onSubmit }) {
     const fileInputRef = useRef(null);
@@ -25,255 +24,257 @@ export default function TabCliente({ formData, setFormData, evidenceFiles, loadi
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => {
-            const updated = { ...prev, [name]: value };
-            if (name === "Soporte") {
-                updated.TipoRequerimiento = [];
-                updated.TipoRequerimientoCustom = {};
-                updated.SoporteCustom = "";
-            }
-            if (name === "Flota" && value !== "Otra") updated.FlotaCustom = "";
-            if (name === "CoordinadorRecibe" && value !== "Otro") updated.CoordinadorRecibeCustom = "";
-            if (name === "AreaEntrega" && value !== "Otra") updated.AreaEntregaCustom = "";
-            return updated;
+            const u = { ...prev, [name]: value };
+            if (name === "Soporte") { u.TipoRequerimiento = []; u.TipoRequerimientoCustom = {}; u.SoporteCustom = ""; }
+            if (name === "Flota" && value !== "Otra") u.FlotaCustom = "";
+            if (name === "CoordinadorRecibe" && value !== "Otro") u.CoordinadorRecibeCustom = "";
+            if (name === "AreaEntrega" && value !== "Otra") u.AreaEntregaCustom = "";
+            return u;
         });
     };
 
-    const handleTipoRequerimientoToggle = (req) => {
-        let updated = [...formData.TipoRequerimiento];
-        let updatedCustom = { ...formData.TipoRequerimientoCustom };
-        if (updated.includes(req)) {
-            updated = updated.filter(r => r !== req);
-            delete updatedCustom[req];
-        } else {
-            updated.push(req);
-            if (req === "Otro") updatedCustom[req] = "";
-        }
-        setFormData({ ...formData, TipoRequerimiento: updated, TipoRequerimientoCustom: updatedCustom });
-    };
-
-    const handleTipoReqCustomChange = (req, value) => {
-        setFormData(prev => ({
-            ...prev,
-            TipoRequerimientoCustom: { ...prev.TipoRequerimientoCustom, [req]: value }
-        }));
+    const toggleTipo = (req) => {
+        let lista = [...formData.TipoRequerimiento];
+        let custom = { ...formData.TipoRequerimientoCustom };
+        if (lista.includes(req)) { lista = lista.filter(r => r !== req); delete custom[req]; }
+        else { lista.push(req); if (req === "Otro") custom[req] = ""; }
+        setFormData({ ...formData, TipoRequerimiento: lista, TipoRequerimientoCustom: custom });
     };
 
     const otValida = formData.OT.length === 8;
+    const plazo = PRIORIDADES[formData.Prioridad];
 
     return (
-        <div className={`${card} w-full`}>
-            <div className="flex flex-wrap items-end justify-between gap-4 border-b border-slate-200 px-8 py-6">
-                <div>
-                    <span className={sectionTitle}>Módulo Cliente</span>
-                    <h2 className="mt-1 text-xl font-semibold tracking-tight text-slate-900">Nuevo requerimiento de mantenimiento</h2>
-                </div>
-                <p className="text-xs text-slate-500">
-                    Los campos marcados con <span className="font-semibold text-cerrejon-orange">*</span> son obligatorios
+        <div className={`${placa} w-full animate-card-in`}>
+            <div className="border-b border-iron-200 px-5 py-4 lg:px-7">
+                <span className={dial}>Cliente</span>
+                <h2 className="mt-1 text-[19px] font-semibold leading-tight tracking-tight text-iron-900">
+                    Ingresar una pieza al taller
+                </h2>
+                <p className="mt-1.5 max-w-2xl text-[13px] text-iron-500">
+                    Al guardar, la solicitud recibe un número de seis dígitos y entra a la cola en estado Pendiente.
                 </p>
             </div>
 
-            <form onSubmit={onSubmit} className="space-y-7 px-8 py-7">
+            <form onSubmit={onSubmit}>
 
-                <Seccion paso="1" titulo="Identificación del trabajo" descripcion="Orden de trabajo, flota y cantidad de piezas.">
-                    <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+                <Bloque titulo="Orden de trabajo" nota="Identifica la pieza dentro del sistema de mantenimiento.">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                         <div>
-                            <label className={label}>OT <span className="text-cerrejon-orange">*</span></label>
+                            <label className={rotulo}>OT <Obligatorio /></label>
                             <input
                                 type="text" name="OT" maxLength={8} value={formData.OT} onChange={handleChange}
-                                className={`${input} tabular uppercase ${formData.OT && !otValida ? 'border-red-400 focus:border-red-500 focus:ring-red-500/15' : ''}`}
+                                className={`${campo} num uppercase ${formData.OT && !otValida ? '!border-alarm focus:!ring-alarm/20' : ''}`}
                                 placeholder="A0104599" required
                             />
-                            <p className={`mt-1.5 text-[11px] font-medium ${formData.OT && !otValida ? 'text-red-600' : 'text-slate-400'}`}>
-                                {formData.OT && !otValida ? `Debe tener exactamente 8 caracteres (${formData.OT.length}/8)` : 'Exactamente 8 caracteres'}
+                            <p className={`mt-1.5 text-[11px] ${formData.OT && !otValida ? 'text-alarm' : 'text-iron-400'}`}>
+                                {formData.OT && !otValida
+                                    ? `Faltan caracteres: van ${formData.OT.length} de 8`
+                                    : 'Ocho caracteres'}
                             </p>
                         </div>
                         <div>
-                            <label className={label}>Flota <span className="text-cerrejon-orange">*</span></label>
-                            <select name="Flota" value={formData.Flota} onChange={handleChange} className={input} required>
+                            <label className={rotulo}>Flota <Obligatorio /></label>
+                            <select name="Flota" value={formData.Flota} onChange={handleChange} className={campo} required>
                                 {FLOTAS.map(f => <option key={f} value={f}>{f}</option>)}
                             </select>
                             {formData.Flota === "Otra" && (
-                                <input type="text" name="FlotaCustom" value={formData.FlotaCustom} onChange={handleChange} className={`${input} mt-2`} placeholder="Especifique la flota..." required />
+                                <input type="text" name="FlotaCustom" value={formData.FlotaCustom} onChange={handleChange} className={`${campo} mt-2`} placeholder="¿Cuál flota?" required />
                             )}
                         </div>
                         <div>
-                            <label className={label}>Cantidad <span className="text-cerrejon-orange">*</span></label>
-                            <input type="number" name="Cantidad" min="1" step="1" value={formData.Cantidad} onChange={(e) => setFormData({ ...formData, Cantidad: parseInt(e.target.value) || 1 })} className={`${input} tabular`} required />
+                            <label className={rotulo}>Cantidad <Obligatorio /></label>
+                            <input
+                                type="number" name="Cantidad" min="1" step="1" value={formData.Cantidad}
+                                onChange={(e) => setFormData({ ...formData, Cantidad: parseInt(e.target.value) || 1 })}
+                                className={`${campo} num`} required
+                            />
                         </div>
                     </div>
-                </Seccion>
+                </Bloque>
 
-                <Seccion paso="2" titulo="Tipo de soporte requerido" descripcion="Elija la categoría y marque todos los requerimientos que apliquen.">
-                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                        <div>
-                            <label className={label}>Soporte (categoría principal) <span className="text-cerrejon-orange">*</span></label>
-                            <select name="Soporte" value={formData.Soporte} onChange={handleChange} className={input} required>
-                                <option value="">Seleccione soporte</option>
-                                {Object.keys(SOPORTE_OPCIONES).map(soporte => (
-                                    <option key={soporte} value={soporte}>{soporte}</option>
-                                ))}
+                <Bloque titulo="Trabajo requerido" nota="Elija la categoría y marque todo lo que aplique.">
+                    <div className="space-y-4">
+                        <div className="sm:max-w-xs">
+                            <label className={rotulo}>Soporte <Obligatorio /></label>
+                            <select name="Soporte" value={formData.Soporte} onChange={handleChange} className={campo} required>
+                                <option value="">Elija una categoría</option>
+                                {Object.keys(SOPORTE_OPCIONES).map(s => <option key={s} value={s}>{s}</option>)}
                             </select>
                             {formData.Soporte === "Otro" && (
-                                <input type="text" name="SoporteCustom" value={formData.SoporteCustom} onChange={handleChange} className={`${input} mt-2`} placeholder="Especifique el soporte..." required />
+                                <input type="text" name="SoporteCustom" value={formData.SoporteCustom} onChange={handleChange} className={`${campo} mt-2`} placeholder="¿Qué soporte necesita?" required />
                             )}
                         </div>
 
-                        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5 lg:col-span-2">
-                            <div className="flex items-center justify-between">
-                                <label className={`${label} mb-0`}>Tipo de requerimiento (selección múltiple)</label>
+                        <div className="border-t border-iron-100 pt-4">
+                            <div className="mb-3 flex items-center justify-between">
+                                <label className={`${rotulo} mb-0`}>Tipo de requerimiento <Obligatorio /></label>
                                 {formData.TipoRequerimiento.length > 0 && (
-                                    <span className="rounded-full bg-cerrejon-orangeSoft px-2 py-0.5 text-[11px] font-semibold text-cerrejon-orangeDark">
-                                        {formData.TipoRequerimiento.length} seleccionado{formData.TipoRequerimiento.length > 1 ? 's' : ''}
+                                    <span className="num text-[11px] text-iron-500">
+                                        {formData.TipoRequerimiento.length} marcado{formData.TipoRequerimiento.length > 1 ? 's' : ''}
                                     </span>
                                 )}
                             </div>
 
                             {!formData.Soporte ? (
-                                <p className="mt-4 text-xs text-slate-500">
-                                    Seleccione una categoría de soporte para cargar los tipos de requerimiento.
+                                <p className="border border-dashed border-iron-300 bg-iron-50 px-4 py-5 text-center text-[12px] text-iron-500">
+                                    Elija primero una categoría de soporte y aquí aparecerán los trabajos disponibles.
                                 </p>
                             ) : formData.Soporte === "Otro" ? (
                                 <input
                                     type="text" value={formData.TipoRequerimiento[0] || ""}
                                     onChange={(e) => setFormData({ ...formData, TipoRequerimiento: e.target.value ? [e.target.value] : [] })}
-                                    className={`${input} mt-3`} placeholder="Especifique el tipo de requerimiento..." required
+                                    className={campo} placeholder="Describa el trabajo requerido" required
                                 />
                             ) : (
-                                <div className="mt-3 space-y-3">
-                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-1 gap-px overflow-hidden rounded-[3px] border border-iron-200 bg-iron-200 sm:grid-cols-2 xl:grid-cols-3">
                                         {SOPORTE_OPCIONES[formData.Soporte].map(req => {
-                                            const activo = formData.TipoRequerimiento.includes(req);
+                                            const on = formData.TipoRequerimiento.includes(req);
                                             return (
                                                 <label
                                                     key={req}
-                                                    className={`flex cursor-pointer select-none items-center gap-2.5 rounded-lg border px-3 py-2.5 text-[13px] transition-colors ${activo
-                                                        ? 'border-cerrejon-orange bg-cerrejon-orangeSoft font-semibold text-cerrejon-orangeDark'
-                                                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'}`}
+                                                    className={`flex cursor-pointer select-none items-center gap-2.5 px-3 py-2.5 text-[13px] transition-colors ${on
+                                                        ? 'bg-brand-wash font-medium text-brand-deep'
+                                                        : 'bg-white text-iron-700 hover:bg-iron-50'}`}
                                                 >
-                                                    <input
-                                                        type="checkbox" checked={activo}
-                                                        onChange={() => handleTipoRequerimientoToggle(req)}
-                                                        className="h-4 w-4 shrink-0 rounded accent-cerrejon-orange"
-                                                    />
+                                                    <input type="checkbox" checked={on} onChange={() => toggleTipo(req)} className="h-[15px] w-[15px] shrink-0 rounded-[2px] accent-brand" />
                                                     <span className="leading-tight">{req}</span>
                                                 </label>
                                             );
                                         })}
                                     </div>
                                     {formData.TipoRequerimiento.includes("Otro") && (
-                                        <input type="text" value={formData.TipoRequerimientoCustom["Otro"] || ""} onChange={(e) => handleTipoReqCustomChange("Otro", e.target.value)} className={input} placeholder="Especifique el tipo de requerimiento..." required />
+                                        <input
+                                            type="text" value={formData.TipoRequerimientoCustom["Otro"] || ""}
+                                            onChange={(e) => setFormData(p => ({ ...p, TipoRequerimientoCustom: { ...p.TipoRequerimientoCustom, Otro: e.target.value } }))}
+                                            className={campo} placeholder="¿Qué otro trabajo necesita?" required
+                                        />
                                     )}
                                 </div>
                             )}
                         </div>
                     </div>
-                </Seccion>
+                </Bloque>
 
-                <Seccion paso="3" titulo="Componente y contacto" descripcion="Datos de la pieza y de quien realiza la solicitud.">
-                    <div className="grid grid-cols-1 gap-5 md:grid-cols-4">
-                        <div className="md:col-span-2">
-                            <label className={label}>Nombre de componente / parte <span className="text-cerrejon-orange">*</span></label>
-                            <input type="text" name="NombreComponente" value={formData.NombreComponente} onChange={handleChange} className={input} placeholder="Ej. Cigüeñal de motor" required />
+                <Bloque titulo="La pieza" nota="Datos que permiten identificarla al recibirla.">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+                        <div className="sm:col-span-2">
+                            <label className={rotulo}>Componente <Obligatorio /></label>
+                            <input type="text" name="NombreComponente" value={formData.NombreComponente} onChange={handleChange} className={campo} placeholder="Cigüeñal de motor" required />
                         </div>
                         <div>
-                            <label className={label}>PN (part number) <span className="text-cerrejon-orange">*</span></label>
-                            <input type="text" name="PN" value={formData.PN} onChange={handleChange} className={`${input} tabular`} placeholder="104-599" required />
+                            <label className={rotulo}>Part number <Obligatorio /></label>
+                            <input type="text" name="PN" value={formData.PN} onChange={handleChange} className={`${campo} num`} placeholder="104-599" required />
                         </div>
                         <div>
-                            <label className={label}>SC (stock code)</label>
-                            <input type="number" name="SC" value={formData.SC} onChange={handleChange} className={`${input} tabular`} placeholder="12" />
+                            <label className={rotulo}>Stock code</label>
+                            <input type="number" name="SC" value={formData.SC} onChange={handleChange} className={`${campo} num`} placeholder="12" />
                         </div>
-                        <div className="md:col-span-2">
-                            <label className={label}>Nombre de quien solicita <span className="text-cerrejon-orange">*</span></label>
-                            <input type="text" name="NombreContacto" value={formData.NombreContacto} onChange={handleChange} className={input} placeholder="Ej. Juan Pérez" required />
-                        </div>
-                        <div>
-                            <label className={label}>Celular <span className="text-cerrejon-orange">*</span></label>
-                            <input type="number" name="Celular" value={formData.Celular} onChange={handleChange} className={`${input} tabular`} placeholder="3101234567" required />
-                        </div>
-                        <div>
-                            <label className={label}>Superintendencia <span className="text-cerrejon-orange">*</span></label>
-                            <select name="Superintendencia" value={formData.Superintendencia || ""} onChange={handleChange} className={input} required>
-                                {SUPERINTENDENCIAS.map(s => <option key={s} value={s}>{s || "Seleccione superintendencia"}</option>)}
-                            </select>
+                        <div className="sm:col-span-4">
+                            <label className={rotulo}>Qué hay que hacerle <Obligatorio /></label>
+                            <textarea
+                                name="DetalleRequerimiento" value={formData.DetalleRequerimiento} onChange={handleChange}
+                                rows="4" className={`${campo} resize-y`}
+                                placeholder="Síntoma observado, alcance esperado y cualquier condición especial de manejo."
+                                required
+                            />
                         </div>
                     </div>
-                </Seccion>
+                </Bloque>
 
-                <Seccion paso="4" titulo="Detalle y prioridad" descripcion="Describa el trabajo requerido y su nivel de urgencia.">
-                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                        <div className="lg:col-span-2">
-                            <label className={label}>Detalle del requerimiento <span className="text-cerrejon-orange">*</span></label>
-                            <textarea name="DetalleRequerimiento" value={formData.DetalleRequerimiento} onChange={handleChange} rows="6" className={`${input} resize-none`} placeholder="Descripción detallada de la solicitud: síntoma, alcance esperado, condiciones especiales..." required></textarea>
-                        </div>
-                        <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5">
-                            <label className={label}>Prioridad <span className="text-cerrejon-orange">*</span></label>
-                            <select name="Prioridad" value={formData.Prioridad} onChange={handleChange} className={input} required>
-                                {Object.keys(PRIORIDADES).map(prio => (
-                                    <option key={prio} value={prio}>{prio} — {PRIORIDADES[prio]} {PRIORIDADES[prio] === 1 ? "día" : "días"}</option>
+                <Bloque titulo="Plazo" nota="La prioridad fija los días de que dispone el taller. Contra ese número se mide el cumplimiento.">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                            <label className={rotulo}>Prioridad <Obligatorio /></label>
+                            <select name="Prioridad" value={formData.Prioridad} onChange={handleChange} className={campo} required>
+                                {Object.keys(PRIORIDADES).map(p => (
+                                    <option key={p} value={p}>{p} — {PRIORIDADES[p]} {PRIORIDADES[p] === 1 ? "día" : "días"}</option>
                                 ))}
                             </select>
-                            <div className="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-4 text-center">
-                                <span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">Tiempo de solución</span>
-                                <span className="tabular mt-1 block text-3xl font-semibold text-cerrejon-orange">
-                                    {PRIORIDADES[formData.Prioridad]}
-                                </span>
-                                <span className="text-[11px] font-medium text-slate-500">
-                                    {PRIORIDADES[formData.Prioridad] === 1 ? "día calendario" : "días calendario"}
-                                </span>
+                        </div>
+                        {/* Lectura del plazo elegido, en el lenguaje del instrumento. */}
+                        <div className="flex items-center gap-4 border-l-2 border-brand bg-brand-wash/60 px-4 py-3">
+                            <div className="num text-[30px] font-medium leading-none text-brand-deep">{plazo}</div>
+                            <div>
+                                <div className="dial text-[10px] text-brand-deep">
+                                    {plazo === 1 ? "día calendario" : "días calendario"}
+                                </div>
+                                <div className="mt-1 text-[12px] text-iron-600">
+                                    {plazo === 0
+                                        ? "Atención inmediata: cualquier día de espera ya es incumplimiento."
+                                        : `Plazo para entregar desde el ingreso de la pieza.`}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </Seccion>
+                </Bloque>
 
-                <Seccion paso="5" titulo="Entrega y evidencias" descripcion="Quién recibe la pieza y soportes fotográficos opcionales.">
-                    <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                <Bloque titulo="Quién solicita" nota="A quién buscar si el taller necesita aclarar algo.">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                         <div>
-                            <label className={label}>Coordinador de MMHH que recibe <span className="text-cerrejon-orange">*</span></label>
-                            <select name="CoordinadorRecibe" value={formData.CoordinadorRecibe} onChange={handleChange} className={input} required>
+                            <label className={rotulo}>Nombre <Obligatorio /></label>
+                            <input type="text" name="NombreContacto" value={formData.NombreContacto} onChange={handleChange} className={campo} placeholder="Juan Pérez" required />
+                        </div>
+                        <div>
+                            <label className={rotulo}>Celular <Obligatorio /></label>
+                            <input type="number" name="Celular" value={formData.Celular} onChange={handleChange} className={`${campo} num`} placeholder="3101234567" required />
+                        </div>
+                        <div>
+                            <label className={rotulo}>Superintendencia <Obligatorio /></label>
+                            <select name="Superintendencia" value={formData.Superintendencia || ""} onChange={handleChange} className={campo} required>
+                                {SUPERINTENDENCIAS.map(s => <option key={s} value={s}>{s || "Elija una"}</option>)}
+                            </select>
+                        </div>
+                    </div>
+                </Bloque>
+
+                <Bloque titulo="Entrega y soportes" nota="Dónde queda la pieza y con qué evidencia llega." ultimo>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                            <label className={rotulo}>Coordinador que recibe <Obligatorio /></label>
+                            <select name="CoordinadorRecibe" value={formData.CoordinadorRecibe} onChange={handleChange} className={campo} required>
                                 {COORDINADORES_LISTA.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                             {formData.CoordinadorRecibe === "Otro" && (
-                                <input type="text" name="CoordinadorRecibeCustom" value={formData.CoordinadorRecibeCustom} onChange={handleChange} className={`${input} mt-2`} placeholder="Especifique el coordinador..." required />
+                                <input type="text" name="CoordinadorRecibeCustom" value={formData.CoordinadorRecibeCustom} onChange={handleChange} className={`${campo} mt-2`} placeholder="¿Quién recibe?" required />
                             )}
                         </div>
                         <div>
-                            <label className={label}>Área de entrega <span className="text-cerrejon-orange">*</span></label>
-                            <select name="AreaEntrega" value={formData.AreaEntrega} onChange={handleChange} className={input} required>
+                            <label className={rotulo}>Área de entrega <Obligatorio /></label>
+                            <select name="AreaEntrega" value={formData.AreaEntrega} onChange={handleChange} className={campo} required>
                                 {AREAS_ENTREGA.map(a => <option key={a} value={a}>{a}</option>)}
                             </select>
                             {formData.AreaEntrega === "Otra" && (
-                                <input type="text" name="AreaEntregaCustom" value={formData.AreaEntregaCustom} onChange={handleChange} className={`${input} mt-2`} placeholder="Especifique el área..." required />
+                                <input type="text" name="AreaEntregaCustom" value={formData.AreaEntregaCustom} onChange={handleChange} className={`${campo} mt-2`} placeholder="¿Cuál área?" required />
                             )}
                         </div>
+                        <div className="sm:col-span-2">
+                            <label className={rotulo}>Fotos de la pieza</label>
+                            <div className="border border-dashed border-iron-300 bg-iron-50 px-4 py-4">
+                                <input
+                                    type="file" accept="image/*" multiple onChange={onFileChange} ref={fileInputRef}
+                                    className="block w-full cursor-pointer text-[13px] text-iron-600 file:mr-4 file:cursor-pointer file:rounded-[3px] file:border-0 file:bg-dye file:px-4 file:py-2 file:font-sans file:text-[13px] file:font-semibold file:text-white hover:file:bg-dye-mid"
+                                />
+                                <p className="mt-2 text-[12px] text-iron-500">
+                                    {evidenceFiles.length > 0
+                                        ? `${evidenceFiles.length} ${evidenceFiles.length > 1 ? 'fotos listas' : 'foto lista'} para adjuntar.`
+                                        : 'Opcional. Ayudan al taller a evaluar antes de recibir la pieza.'}
+                                </p>
+                            </div>
+                        </div>
                     </div>
+                </Bloque>
 
-                    <div className="mt-5 rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-5">
-                        <label className={label}>Documentos o evidencias fotográficas (opcional)</label>
-                        <input
-                            type="file" accept="image/*" multiple onChange={onFileChange} ref={fileInputRef}
-                            className="block w-full cursor-pointer text-[13px] text-slate-600 file:mr-4 file:cursor-pointer file:rounded-lg file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-[13px] file:font-semibold file:text-white hover:file:bg-slate-700"
-                        />
-                        {evidenceFiles.length > 0 && (
-                            <p className="mt-2.5 text-[11px] font-medium text-emerald-700">
-                                {evidenceFiles.length} archivo{evidenceFiles.length > 1 ? 's' : ''} listo{evidenceFiles.length > 1 ? 's' : ''} para adjuntar
-                            </p>
-                        )}
-                    </div>
-                </Seccion>
-
-                <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-6">
-                    <p className="text-xs text-slate-500">
-                        Al guardar, el sistema asigna un número de solicitud y la deja en estado <strong className="font-semibold text-slate-700">Pendiente</strong>.
-                    </p>
-                    <button type="submit" disabled={loading} className={btnPrimary}>
+                <div className="flex flex-wrap items-center justify-end gap-4 border-t border-iron-200 bg-iron-50 px-5 py-4 lg:px-7">
+                    <button type="submit" disabled={loading} className={btn}>
                         {loading && (
                             <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
+                                <circle className="opacity-30" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
                             </svg>
                         )}
-                        {loading ? "Procesando..." : "Guardar requerimiento"}
+                        {loading ? "Guardando..." : "Guardar solicitud"}
                     </button>
                 </div>
             </form>

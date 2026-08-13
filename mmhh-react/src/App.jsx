@@ -3,9 +3,9 @@ import { AUTORIZADOS, ESTADOS_COORDINADOR, ESTADO_SOLICITUD } from './constants'
 import {
     initialFormState, initialCoordinatorFormState, nuevoProceso, getCurrentDate,
     generateSolicitudID, compressImage, downloadCSV, getEstadoSolicitud,
-    esEstadoCierre, normalizarComentarios, totalHorasHombre, prioridadRank,
-    getPrioridadEfectiva
+    esEstadoCierre, normalizarComentarios, totalHorasHombre
 } from './utils/helpers';
+import { medirTolerancia } from './utils/tolerancia';
 import { authenticateUser, fetchItems, createItem, updateCoordinatorData } from './utils/sharepointApi';
 import Header from './components/Header';
 import TabCliente from './components/TabCliente';
@@ -15,57 +15,68 @@ import ModalGestionCoord from './components/ModalGestionCoord';
 import ModalDetalle from './components/ModalDetalle';
 import ModalImagenes from './components/ModalImagenes';
 import ModalExito from './components/ModalExito';
+import { dial } from './ui';
 
-/** Filtros compartidos por los modulos Coordinador y Base de Datos. */
+/** Filtros compartidos por Coordinación y Base de Datos. */
 const aplicaFiltros = (items, f) => {
-    // Sin filtros activos se muestra todo, incluidos los registros con JSON corrupto:
-    // esconderlos haria que un dato dañado pasara inadvertido.
+    // Sin filtros se muestra todo, incluidos los registros con JSON dañado:
+    // esconderlos haría que un dato corrupto pasara inadvertido.
     const hayFiltros = Object.entries(f).some(([k, v]) => k !== 'state' && v);
     if (!hayFiltros) return items;
 
-    let out = items.filter(item => !item.parsedData.Error);
+    let out = items.filter(i => !i.parsedData.Error);
 
     if (f.search) {
         const s = f.search.toLowerCase();
-        out = out.filter(item => {
-            const d = item.parsedData;
-            return [d.SolicitudID, d.OT, d.NombreComponente, d.Flota, d.Soporte, d.PN, d.SC,
+        out = out.filter(({ parsedData: d }) =>
+            [d.SolicitudID, d.OT, d.NombreComponente, d.Flota, d.Soporte, d.PN, d.SC,
             d.NombreContacto, d.CoordinadorRecibe, d.AreaEntrega, d.Superintendencia]
-                .some(v => String(v || "").toLowerCase().includes(s));
-        });
+                .some(v => String(v || "").toLowerCase().includes(s)));
     }
 
-    if (f.estadoSolicitud) out = out.filter(item => getEstadoSolicitud(item.parsedData) === f.estadoSolicitud);
-    if (f.estadoComponente) out = out.filter(item => item.parsedData.Coordinador?.Estado === f.estadoComponente);
-    if (f.prioridad) out = out.filter(item => item.parsedData.Prioridad === f.prioridad);
-    if (f.prioridadCoordinador) out = out.filter(item => item.parsedData.Coordinador?.PrioridadCoordinador === f.prioridadCoordinador);
-    if (f.areaProceso) {
-        out = out.filter(item => (item.parsedData.Coordinador?.Procesos || []).some(p => p.AreaProceso === f.areaProceso));
-    }
-    if (f.superintendencia) out = out.filter(item => item.parsedData.Superintendencia === f.superintendencia);
-    if (f.flota) out = out.filter(item => item.parsedData.Flota === f.flota);
-    if (f.coordinadorRecibe) out = out.filter(item => item.parsedData.CoordinadorRecibe === f.coordinadorRecibe);
-    if (f.areaEntrega) out = out.filter(item => item.parsedData.AreaEntrega === f.areaEntrega);
-    if (f.fechaDesde) out = out.filter(item => (item.parsedData.Fecha || "") >= f.fechaDesde);
-    if (f.fechaHasta) out = out.filter(item => (item.parsedData.Fecha || "") <= f.fechaHasta);
+    if (f.estadoSolicitud) out = out.filter(i => getEstadoSolicitud(i.parsedData) === f.estadoSolicitud);
+    if (f.estadoComponente) out = out.filter(i => i.parsedData.Coordinador?.Estado === f.estadoComponente);
+    if (f.prioridad) out = out.filter(i => i.parsedData.Prioridad === f.prioridad);
+    if (f.prioridadCoordinador) out = out.filter(i => i.parsedData.Coordinador?.PrioridadCoordinador === f.prioridadCoordinador);
+    if (f.areaProceso) out = out.filter(i => (i.parsedData.Coordinador?.Procesos || []).some(p => p.AreaProceso === f.areaProceso));
+    if (f.superintendencia) out = out.filter(i => i.parsedData.Superintendencia === f.superintendencia);
+    if (f.flota) out = out.filter(i => i.parsedData.Flota === f.flota);
+    if (f.coordinadorRecibe) out = out.filter(i => i.parsedData.CoordinadorRecibe === f.coordinadorRecibe);
+    if (f.areaEntrega) out = out.filter(i => i.parsedData.AreaEntrega === f.areaEntrega);
+    if (f.fechaDesde) out = out.filter(i => (i.parsedData.Fecha || "") >= f.fechaDesde);
+    if (f.fechaHasta) out = out.filter(i => (i.parsedData.Fecha || "") <= f.fechaHasta);
 
     return out;
 };
 
 const calcularResumen = (items) => {
-    let pendientes = 0, enProceso = 0, entregadas = 0, criticas = 0, horas = 0;
-    items.forEach(item => {
-        const d = item.parsedData;
+    let pendientes = 0, enProceso = 0, entregadas = 0, fuera = 0, horas = 0;
+    items.forEach(({ parsedData: d }) => {
         if (d.Error) return;
-        const estadoSol = getEstadoSolicitud(d);
-        const estadoComp = d.Coordinador?.Estado;
-        if (estadoSol === ESTADO_SOLICITUD.PENDIENTE) pendientes++;
-        if (esEstadoCierre(estadoComp)) entregadas++;
-        else if (estadoSol === ESTADO_SOLICITUD.GESTIONADO) enProceso++;
-        if (prioridadRank(getPrioridadEfectiva(d)) <= 2) criticas++;
+        const cerrada = esEstadoCierre(d.Coordinador?.Estado);
+        if (getEstadoSolicitud(d) === ESTADO_SOLICITUD.PENDIENTE) pendientes++;
+        if (cerrada) entregadas++;
+        else enProceso++;
+        const t = medirTolerancia(d);
+        if (t && t.estado === 'fuera') fuera++;
         horas += totalHorasHombre(d.Coordinador);
     });
-    return { total: items.length, pendientes, enProceso, entregadas, criticas, horas: Math.round(horas) };
+    return { total: items.length, pendientes, enProceso, entregadas, fuera, horas: Math.round(horas) };
+};
+
+/** Reparto de la cola abierta por estado de plazo, para la banda del encabezado. */
+const calcularBanda = (items) => {
+    let dentro = 0, limite = 0, fuera = 0, cerradas = 0;
+    items.forEach(({ parsedData: d }) => {
+        if (d.Error) return;
+        if (esEstadoCierre(d.Coordinador?.Estado)) { cerradas++; return; }
+        const t = medirTolerancia(d);
+        if (!t) { dentro++; return; }
+        if (t.estado === 'fuera') fuera++;
+        else if (t.estado === 'limite') limite++;
+        else dentro++;
+    });
+    return { dentro, limite, fuera, cerradas };
 };
 
 export default function App() {
@@ -79,18 +90,11 @@ export default function App() {
     const [coordFilter, setCoordFilter] = useState(coordFilterVacio);
     const [exito, setExito] = useState(null);
 
-    const [userAuth, setUserAuth] = useState({
-        authenticated: false,
-        name: "Cargando usuario...",
-        email: "",
-        isCoordinator: false
-    });
-
+    const [userAuth, setUserAuth] = useState({ authenticated: false, name: "Cargando...", email: "", isCoordinator: false });
     const [viewModalItem, setViewModalItem] = useState(null);
     const [manageModalItem, setManageModalItem] = useState(null);
     const [coordForm, setCoordForm] = useState(initialCoordinatorFormState);
     const [coordEvidenceFiles, setCoordEvidenceFiles] = useState([]);
-
     const [modalImages, setModalImages] = useState(null);
     const [activeImageIndex, setActiveImageIndex] = useState(0);
 
@@ -107,65 +111,64 @@ export default function App() {
 
     const loadItems = async () => {
         setLoading(true);
-        try {
-            setItems(await fetchItems());
-        } catch (err) {
-            setError("No se cargó la base de datos de SharePoint: " + err.message);
-        } finally {
-            setLoading(false);
-        }
+        try { setItems(await fetchItems()); }
+        catch (err) { setError("No se pudo leer la base de datos de SharePoint. " + err.message); }
+        finally { setLoading(false); }
     };
+
+    const validos = useMemo(() => items.filter(i => !i.parsedData.Error), [items]);
+    const banda = useMemo(() => calcularBanda(validos), [validos]);
 
     const dbItems = useMemo(() => aplicaFiltros(items, dbFilter), [items, dbFilter]);
     const dbResumen = useMemo(() => calcularResumen(dbItems), [dbItems]);
-    const resumenGlobal = useMemo(() => calcularResumen(items.filter(i => !i.parsedData.Error)), [items]);
+
+    const coordBase = useMemo(() => aplicaFiltros(items, coordFilter), [items, coordFilter]);
+
+    const porSegmento = useMemo(() => {
+        const abierta = (d) => !esEstadoCierre(d.Coordinador?.Estado);
+        return {
+            todos: (x) => true,
+            no_gestionado: (d) => getEstadoSolicitud(d) === ESTADO_SOLICITUD.PENDIENTE,
+            en_proceso: (d) => getEstadoSolicitud(d) === ESTADO_SOLICITUD.GESTIONADO && abierta(d),
+            vencidas: (d) => abierta(d) && medirTolerancia(d)?.estado === 'fuera',
+            entregados: (d) => esEstadoCierre(d.Coordinador?.Estado)
+        };
+    }, []);
+
+    const conteos = useMemo(() => {
+        const c = {};
+        Object.entries(porSegmento).forEach(([k, test]) => {
+            c[k] = coordBase.filter(i => !i.parsedData.Error && test(i.parsedData)).length;
+        });
+        return c;
+    }, [coordBase, porSegmento]);
 
     const coordItems = useMemo(() => {
-        let out = aplicaFiltros(items, coordFilter);
-        if (coordFilter.state === 'no_gestionado') {
-            out = out.filter(i => getEstadoSolicitud(i.parsedData) === ESTADO_SOLICITUD.PENDIENTE);
-        } else if (coordFilter.state === 'entregados') {
-            out = out.filter(i => esEstadoCierre(i.parsedData.Coordinador?.Estado));
-        } else if (coordFilter.state === 'en_proceso') {
-            out = out.filter(i =>
-                getEstadoSolicitud(i.parsedData) === ESTADO_SOLICITUD.GESTIONADO &&
-                !esEstadoCierre(i.parsedData.Coordinador?.Estado)
-            );
-        }
-        return out;
-    }, [items, coordFilter]);
+        const test = porSegmento[coordFilter.state] || porSegmento.todos;
+        if (coordFilter.state === 'todos') return coordBase;
+        return coordBase.filter(i => !i.parsedData.Error && test(i.parsedData));
+    }, [coordBase, coordFilter.state, porSegmento]);
 
-    const handleFileChange = (e) => setEvidenceFiles(Array.from(e.target.files));
-
-    // El aviso vive al tope de la pagina; si el formulario esta desplazado hay que subir.
-    const avisar = (msg) => {
-        setError(msg);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
+    const avisar = (msg) => { setError(msg); window.scrollTo({ top: 0, behavior: 'smooth' }); };
 
     const handleSubmitCliente = async (e) => {
         e.preventDefault();
-        if (!formData.OT || formData.OT.length !== 8) return avisar("La OT debe tener exactamente 8 caracteres.");
-        if (formData.TipoRequerimiento.length === 0) return avisar("Seleccione al menos un tipo de requerimiento.");
+        if (!formData.OT || formData.OT.length !== 8) return avisar("La OT necesita exactamente 8 caracteres.");
+        if (formData.TipoRequerimiento.length === 0) return avisar("Marque al menos un tipo de requerimiento.");
 
         setLoading(true);
         setError(null);
-
         const idsExistentes = items.map(i => i.parsedData?.SolicitudID).filter(Boolean);
-        const otEnviada = formData.OT;
-        const componenteEnviado = formData.NombreComponente;
+        const ot = formData.OT, componente = formData.NombreComponente;
 
         try {
-            const solicitudID = await createItem(formData, evidenceFiles, compressImage, generateSolicitudID, idsExistentes);
+            const id = await createItem(formData, evidenceFiles, compressImage, generateSolicitudID, idsExistentes);
             setFormData(initialFormState);
             setEvidenceFiles([]);
             await loadItems();
-            setExito({ id: solicitudID, ot: otEnviada, componente: componenteEnviado });
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
+            setExito({ id, ot, componente });
+        } catch (err) { setError(err.message); }
+        finally { setLoading(false); }
     };
 
     const handleOpenManageModal = (item) => {
@@ -174,13 +177,13 @@ export default function App() {
         const c = item.parsedData?.Coordinador;
 
         if (c) {
-            const procesosPrevios = (c.Procesos && c.Procesos.length > 0)
+            const previos = (c.Procesos && c.Procesos.length > 0)
                 ? c.Procesos
                 : [{ ProcesoRequerido: c.ProcesoRequerido || "Ensayo No destructivo", SubprocesoRequerido: c.SubprocesoRequerido || "" }];
 
             setCoordForm({
-                // Los procesos historicos no traían área ni horas: se completan con el default.
-                Procesos: procesosPrevios.map(p => ({ ...nuevoProceso(), ...p })),
+                // Los procesos históricos no traían área ni horas: se completan con el default.
+                Procesos: previos.map(p => ({ ...nuevoProceso(), ...p })),
                 ComplementoMMHH: c.ComplementoMMHH || "",
                 Estado: ESTADOS_COORDINADOR.includes(c.Estado) ? c.Estado : "En espera",
                 PrioridadCoordinador: c.PrioridadCoordinador || item.parsedData.Prioridad || "P0",
@@ -204,10 +207,9 @@ export default function App() {
 
     const handleSaveCoordResponse = async (e) => {
         e.preventDefault();
-
-        const yaTieneCierre = (coordForm.Comentarios || []).some(c => c.EsCierre);
-        if (esEstadoCierre(coordForm.Estado) && !yaTieneCierre && !coordForm.ComentarioCierre.trim()) {
-            return setError(`Para dejar el componente en "${coordForm.Estado}" debe registrar el comentario de cierre.`);
+        const yaCerrada = (coordForm.Comentarios || []).some(c => c.EsCierre);
+        if (esEstadoCierre(coordForm.Estado) && !yaCerrada && !coordForm.ComentarioCierre.trim()) {
+            return setError(`Para dejar el componente en "${coordForm.Estado}" falta el comentario de cierre.`);
         }
 
         setLoading(true);
@@ -217,42 +219,39 @@ export default function App() {
             setManageModalItem(null);
             setCoordEvidenceFiles([]);
             await loadItems();
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
+        } catch (err) { setError(err.message); }
+        finally { setLoading(false); }
     };
 
     const tabs = [
         { key: 'cliente', label: 'Cliente' },
-        ...(userAuth.isCoordinator ? [{ key: 'coordinador', label: 'Coordinador' }] : []),
-        { key: 'basedatos', label: 'Base de Datos' }
+        ...(userAuth.isCoordinator ? [{ key: 'coordinador', label: 'Coordinación' }] : []),
+        { key: 'basedatos', label: 'Base de datos' }
     ];
 
     return (
-        <div className="mx-auto flex min-h-screen max-w-[1600px] flex-col gap-5 px-4 py-6 sm:px-6 lg:px-8">
-            <Header userAuth={userAuth} resumen={resumenGlobal} />
+        <div className="mx-auto flex min-h-screen max-w-[1600px] flex-col gap-4 px-3 py-4 sm:px-5 sm:py-6">
+            <Header userAuth={userAuth} banda={banda} />
 
             {error && (
-                <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-5 py-4 shadow-sm">
-                    <svg className="mt-0.5 h-5 w-5 shrink-0 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M18 10A8 8 0 112 10a8 8 0 0116 0zm-9 4a1 1 0 112 0 1 1 0 01-2 0zm1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                <div className="flex items-start gap-3 border-l-2 border-alarm bg-alarm-wash px-4 py-3">
+                    <svg className="mt-px h-4 w-4 shrink-0 text-alarm" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7">
+                        <circle cx="10" cy="10" r="7.5" /><path d="M10 6v5M10 13.5v.5" strokeLinecap="square" />
                     </svg>
-                    <p className="flex-1 text-[13px] font-medium leading-relaxed text-red-800">{error}</p>
-                    <button onClick={() => setError(null)} className="shrink-0 rounded p-1 text-red-400 transition-colors hover:bg-red-100 hover:text-red-700" aria-label="Cerrar aviso">
-                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 18L18 6M6 6l12 12" /></svg>
+                    <p className="flex-1 text-[13px] font-medium leading-relaxed text-alarm">{error}</p>
+                    <button onClick={() => setError(null)} aria-label="Cerrar aviso" className="shrink-0 rounded-[3px] p-1 text-alarm/60 transition-colors hover:bg-white hover:text-alarm">
+                        <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="square"><path d="M5 5l10 10M15 5L5 15" /></svg>
                     </button>
                 </div>
             )}
 
-            <nav className="no-print flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+            <nav className="no-print flex gap-px overflow-hidden border border-iron-300 bg-iron-300">
                 {tabs.map(t => (
                     <button
                         key={t.key} onClick={() => setActiveTab(t.key)}
-                        className={`flex-1 rounded-lg px-5 py-2.5 text-[13px] font-semibold transition-colors ${activeTab === t.key
-                            ? 'bg-cerrejon-dark text-white shadow-sm'
-                            : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                        className={`dial flex-1 px-5 py-3 text-[11px] transition-colors ${activeTab === t.key
+                            ? 'bg-dye text-white'
+                            : 'bg-white text-iron-500 hover:bg-iron-50 hover:text-iron-900'}`}
                     >
                         {t.label}
                     </button>
@@ -261,68 +260,51 @@ export default function App() {
 
             {activeTab === 'cliente' && (
                 <TabCliente
-                    formData={formData}
-                    setFormData={setFormData}
-                    evidenceFiles={evidenceFiles}
-                    setEvidenceFiles={setEvidenceFiles}
-                    loading={loading}
-                    onFileChange={handleFileChange}
+                    formData={formData} setFormData={setFormData}
+                    evidenceFiles={evidenceFiles} loading={loading}
+                    onFileChange={(e) => setEvidenceFiles(Array.from(e.target.files))}
                     onSubmit={handleSubmitCliente}
                 />
             )}
 
             {activeTab === 'coordinador' && userAuth.isCoordinator && (
                 <TabCoordinador
-                    coordFilter={coordFilter}
-                    setCoordFilter={setCoordFilter}
-                    items={coordItems}
-                    onViewDetails={setViewModalItem}
-                    onOpenManageModal={handleOpenManageModal}
+                    coordFilter={coordFilter} setCoordFilter={setCoordFilter}
+                    items={coordItems} conteos={conteos}
+                    onViewDetails={setViewModalItem} onOpenManageModal={handleOpenManageModal}
                 />
             )}
 
             {activeTab === 'basedatos' && (
                 <TabBaseDatos
-                    dbFilter={dbFilter}
-                    setDbFilter={setDbFilter}
-                    items={dbItems}
-                    resumen={dbResumen}
+                    dbFilter={dbFilter} setDbFilter={setDbFilter}
+                    items={dbItems} resumen={dbResumen}
                     onDownloadCSV={() => downloadCSV(dbItems)}
-                    onViewDetails={setViewModalItem}
-                    onOpenManageModal={handleOpenManageModal}
+                    onViewDetails={setViewModalItem} onOpenManageModal={handleOpenManageModal}
                     userAuth={userAuth}
                 />
             )}
 
-            <footer className="no-print pb-2 pt-2 text-center text-[11px] text-slate-400">
-                Cerrejón SGIA · Máquinas y Herramientas · Sistema de gestión de requerimientos
+            <footer className={`${dial} no-print mt-auto pt-2 text-center !text-[9px] text-iron-400`}>
+                Cerrejón SGIA · Máquinas y Herramientas
             </footer>
 
             <ModalGestionCoord
-                manageModalItem={manageModalItem}
-                setManageModalItem={setManageModalItem}
-                coordForm={coordForm}
-                setCoordForm={setCoordForm}
-                coordEvidenceFiles={coordEvidenceFiles}
-                setCoordEvidenceFiles={setCoordEvidenceFiles}
-                loading={loading}
-                error={error}
-                userAuth={userAuth}
+                manageModalItem={manageModalItem} setManageModalItem={setManageModalItem}
+                coordForm={coordForm} setCoordForm={setCoordForm}
+                coordEvidenceFiles={coordEvidenceFiles} setCoordEvidenceFiles={setCoordEvidenceFiles}
+                loading={loading} error={error} userAuth={userAuth}
                 onSaveCoordResponse={handleSaveCoordResponse}
             />
 
             <ModalDetalle
-                viewModalItem={viewModalItem}
-                setViewModalItem={setViewModalItem}
-                setModalImages={setModalImages}
-                setActiveImageIndex={setActiveImageIndex}
+                viewModalItem={viewModalItem} setViewModalItem={setViewModalItem}
+                setModalImages={setModalImages} setActiveImageIndex={setActiveImageIndex}
             />
 
             <ModalImagenes
-                modalImages={modalImages}
-                setModalImages={setModalImages}
-                activeImageIndex={activeImageIndex}
-                setActiveImageIndex={setActiveImageIndex}
+                modalImages={modalImages} setModalImages={setModalImages}
+                activeImageIndex={activeImageIndex} setActiveImageIndex={setActiveImageIndex}
             />
 
             <ModalExito data={exito} onClose={() => setExito(null)} />

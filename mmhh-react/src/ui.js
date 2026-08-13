@@ -1,78 +1,94 @@
 /**
- * Tokens de interfaz compartidos.
- * Un solo lugar define superficies, campos y etiquetas para que los tres modulos
- * (Cliente / Coordinador / Base de Datos) se lean como un mismo producto.
+ * Tokens de interfaz.
+ *
+ * Direccion: taller de maquinas y herramientas. El cromo se pinta con azul de
+ * trazado, los rotulos se graban en condensada como los diales de las maquinas y
+ * todo numero se compone en mono. Nada de sombras difusas ni degradados: las
+ * superficies se separan con filo de 1px, como piezas mecanizadas.
  */
 
-export const card = "bg-white border border-slate-200 rounded-xl shadow-sm";
-export const cardElevated = "bg-white border border-slate-200 rounded-xl shadow-lg shadow-slate-900/5";
+/* --- superficies --- */
+export const placa = "bg-white border border-iron-200";
+export const placaSuave = "bg-iron-50 border border-iron-200";
 
-export const sectionTitle = "text-[11px] font-semibold text-slate-500 uppercase tracking-[0.14em]";
-export const label = "block text-[11px] font-semibold text-slate-600 mb-1.5";
-export const labelSm = "block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1";
+/* --- rotulos --- */
+export const dial = "dial text-[11px] text-iron-500";
+export const dialClaro = "dial text-[11px] text-scribe";
+export const rotulo = "block text-[11px] font-medium text-iron-600 mb-1.5";
+export const rotuloMini = "dial block text-[10px] text-iron-500 mb-1";
 
-export const input =
-    "block w-full rounded-lg bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 " +
-    "px-3 py-2.5 text-sm outline-none transition-shadow " +
-    "focus:border-cerrejon-orange focus:ring-4 focus:ring-cerrejon-orange/15 " +
-    "disabled:bg-slate-100 disabled:text-slate-500";
+/* --- campos --- */
+const campoBase =
+    "block w-full rounded-[3px] border bg-white text-iron-900 placeholder:text-iron-400 " +
+    "outline-none transition-colors border-iron-300 " +
+    "hover:border-iron-400 focus:border-brand focus:ring-2 focus:ring-brand/20 " +
+    "disabled:bg-iron-100 disabled:text-iron-400";
 
-export const inputSm =
-    "block w-full rounded-lg bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 " +
-    "px-2.5 py-2 text-[13px] outline-none transition-shadow " +
-    "focus:border-cerrejon-orange focus:ring-4 focus:ring-cerrejon-orange/15";
+export const campo = `${campoBase} px-3 py-2.5 text-[14px]`;
+export const campoMini = `${campoBase} px-2.5 py-2 text-[13px]`;
+export const campoFiltro = `${campoBase} px-2.5 py-[7px] text-[13px]`;
 
-export const filterInput =
-    "rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-[13px] text-slate-800 outline-none " +
-    "transition-shadow focus:border-cerrejon-orange focus:ring-4 focus:ring-cerrejon-orange/15";
+/* --- botones --- */
+export const btn =
+    "inline-flex items-center justify-center gap-2 rounded-[3px] bg-brand px-5 py-2.5 text-[13px] " +
+    "font-semibold text-white transition-colors hover:bg-brand-deep " +
+    "disabled:opacity-50 disabled:cursor-not-allowed";
 
-export const btnPrimary =
-    "inline-flex items-center justify-center gap-2 rounded-lg bg-cerrejon-orange px-5 py-2.5 text-sm font-semibold " +
-    "text-white shadow-sm transition-colors hover:bg-cerrejon-orangeDark focus:outline-none " +
-    "focus:ring-4 focus:ring-cerrejon-orange/25 disabled:opacity-55 disabled:cursor-not-allowed";
+export const btnLinea =
+    "inline-flex items-center justify-center gap-2 rounded-[3px] border border-iron-300 bg-white px-4 py-2.5 " +
+    "text-[13px] font-semibold text-iron-700 transition-colors hover:border-iron-400 hover:bg-iron-50";
 
-export const btnSecondary =
-    "inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 " +
-    "text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus:outline-none " +
-    "focus:ring-4 focus:ring-slate-200";
+export const btnMini =
+    "inline-flex items-center gap-1.5 rounded-[3px] border border-iron-300 bg-white px-2.5 py-1.5 " +
+    "text-[12px] font-semibold text-iron-700 transition-colors hover:border-iron-400 hover:bg-iron-50";
 
-export const btnGhostSm =
-    "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold text-slate-600 " +
-    "transition-colors hover:bg-slate-100 hover:text-slate-900";
+export const btnTexto =
+    "inline-flex items-center gap-1.5 text-[12px] font-medium text-iron-500 underline-offset-4 " +
+    "transition-colors hover:text-iron-900 hover:underline";
 
-export const th = "px-4 py-3 text-left text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500";
-export const td = "px-4 py-3 text-[13px] text-slate-700 align-middle";
+/* --- tabla --- */
+export const th = "dial px-3 py-2.5 text-left text-[10px] text-iron-500 whitespace-nowrap";
+export const td = "px-3 py-3 text-[13px] text-iron-700 align-middle";
 
-export const pill = "inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold whitespace-nowrap";
+/* --- marcas de estado ---
+   Placa grabada: filo de 1px y fondo plano. Sin pildoras redondeadas. */
+export const marca = "inline-flex items-center rounded-[2px] px-2 py-[3px] text-[11px] font-medium whitespace-nowrap border";
 
-/** Color semantico por estado del componente. */
-const ESTADO_TONO = {
-    "En espera": "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200",
-    "En proceso": "bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200",
-    "Pendiente por información": "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200",
-    "Pendiente por herramientas": "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200",
-    "Pendiente por Personal": "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200",
-    "Pendiente por equipo": "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200",
-    "Terminado": "bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200",
-    "Reportado cliente": "bg-teal-50 text-teal-700 ring-1 ring-inset ring-teal-200",
-    "Entregado al cliente": "bg-emerald-600 text-white ring-1 ring-inset ring-emerald-600",
-    "Entregado a recibo": "bg-emerald-600 text-white ring-1 ring-inset ring-emerald-600"
+const ESTADO_MARCA = {
+    "En espera": "border-iron-300 bg-iron-100 text-iron-600",
+    "En proceso": "border-dye-line/35 bg-dye/[0.07] text-dye-mid",
+    "Pendiente por información": "border-brand/40 bg-brand-wash text-brand-deep",
+    "Pendiente por herramientas": "border-brand/40 bg-brand-wash text-brand-deep",
+    "Pendiente por Personal": "border-brand/40 bg-brand-wash text-brand-deep",
+    "Pendiente por equipo": "border-brand/40 bg-brand-wash text-brand-deep",
+    "Terminado": "border-spec/40 bg-spec-wash text-spec",
+    "Reportado cliente": "border-dye-line/35 bg-dye/[0.07] text-dye-mid",
+    "Entregado al cliente": "border-spec bg-spec text-white",
+    "Entregado a recibo": "border-spec bg-spec text-white"
 };
 
-export const estadoTono = (estado) =>
-    ESTADO_TONO[estado] || "bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200";
+export const marcaEstado = (e) => ESTADO_MARCA[e] || "border-iron-300 bg-iron-100 text-iron-500";
 
-/** Estado de la solicitud (controlado por el sistema). */
-export const estadoSolicitudTono = (estado) =>
-    estado === "Gestionado"
-        ? "bg-indigo-50 text-indigo-700 ring-1 ring-inset ring-indigo-200"
-        : "bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-200";
+/* Sobre azul de trazado las marcas claras se apagan: allí se usa la variante en
+   negativo, con un punto que conserva la semántica del color. */
+export const marcaOscura = "border-white/25 bg-white/10 text-white gap-1.5";
 
-/** P0 y P01 son criticas; el degradado baja hasta gris para prioridades largas. */
-export const prioridadTono = (p) => {
-    if (p === "P0") return "bg-red-600 text-white ring-1 ring-inset ring-red-600";
-    if (p === "P01" || p === "P02") return "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200";
-    if (p === "P03" || p === "P1") return "bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200";
-    if (p === "P2" || p === "P3") return "bg-sky-50 text-sky-700 ring-1 ring-inset ring-sky-200";
-    return "bg-slate-100 text-slate-600 ring-1 ring-inset ring-slate-200";
+export const puntoEstado = (e) => {
+    if (["Entregado al cliente", "Entregado a recibo", "Terminado"].includes(e)) return "bg-spec";
+    if (String(e).startsWith("Pendiente")) return "bg-brand";
+    if (e === "En proceso" || e === "Reportado cliente") return "bg-scribe";
+    return "bg-iron-300";
+};
+
+export const marcaSolicitud = (e) =>
+    e === "Gestionado"
+        ? "border-dye-line/40 bg-dye/[0.07] text-dye-mid"
+        : "border-brand/45 bg-brand-wash text-brand-deep";
+
+/* Prioridad: escala de severidad, no diez colores distintos. */
+export const marcaPrioridad = (p) => {
+    if (p === "P0") return "border-alarm bg-alarm text-white";
+    if (p === "P01" || p === "P02") return "border-alarm/45 bg-alarm-wash text-alarm";
+    if (p === "P03" || p === "P1") return "border-brand/45 bg-brand-wash text-brand-deep";
+    return "border-iron-300 bg-iron-100 text-iron-600";
 };

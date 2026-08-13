@@ -177,6 +177,10 @@ export const updateCoordinatorData = async (manageModalItem, coordForm, coordEvi
             FechaEstimado: coordForm.FechaEstimado,
             NotificacionCliente: coordForm.NotificacionCliente,
             Demoras: coordForm.Demoras,
+            // Se sella la fecha del primer cierre: es contra ella que se mide el plazo.
+            FechaCierre: esEstadoCierre(coordForm.Estado)
+                ? (coordinadorPrevio.FechaCierre || getCurrentDateFn())
+                : undefined,
             Comentarios: historialPrevio,
             ImagenesBase64: [...imagenesPrevias, ...coordBase64Images]
         }

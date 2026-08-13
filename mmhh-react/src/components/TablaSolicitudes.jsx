@@ -1,57 +1,127 @@
 import React from 'react';
-import { th, td, pill, estadoTono, estadoSolicitudTono, prioridadTono } from '../ui';
+import { th, td, marca, marcaEstado, marcaSolicitud, marcaPrioridad } from '../ui';
 import { getEstadoSolicitud, getPrioridadEfectiva, totalHorasHombre } from '../utils/helpers';
+import { medirTolerancia } from '../utils/tolerancia';
+import Tolerancia from './Tolerancia';
 
-const IconOjo = () => (
-    <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+const IconFicha = () => (
+    <svg className="h-[15px] w-[15px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <rect x="3.5" y="2.5" width="13" height="15" />
+        <path d="M6.5 6.5h7M6.5 10h7M6.5 13.5h4" strokeLinecap="square" />
     </svg>
 );
 
+/* Correderas: "ajustar la gestión" se lee mejor que un engranaje decorativo. */
 const IconGestion = () => (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" />
+    <svg className="h-[15px] w-[15px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M3 6h5M12 6h5M3 14h9M16 14h1" strokeLinecap="square" />
+        <path d="M10 3.5v5M14 11.5v5" strokeLinecap="square" />
     </svg>
 );
 
-export default function TablaSolicitudes({ items, onViewDetails, onOpenManageModal, puedeGestionar, mostrarRanking = false, vacio }) {
+const Vacio = ({ vacio }) => (
+    <div className="px-4 py-16 text-center">
+        <svg className="mx-auto mb-4 h-10 w-10 text-iron-300" viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.2">
+            <rect x="7" y="5" width="26" height="30" />
+            <path d="M12 12h16M12 19h16M12 26h9" strokeLinecap="square" />
+        </svg>
+        <p className="text-[13px] font-medium text-iron-600">{vacio || "Ninguna solicitud coincide con los filtros."}</p>
+        <p className="mt-1 text-[12px] text-iron-400">Ajuste o limpie los filtros para ver más registros.</p>
+    </div>
+);
+
+/** En pantalla angosta una tabla de once columnas no se lee: cada solicitud pasa a ficha. */
+function Tarjeta({ item, idx, onViewDetails, onOpenManageModal, puedeGestionar, mostrarOrden }) {
+    const d = item.parsedData;
+    if (d.Error) return <li className="px-4 py-3 text-[12px] text-alarm">Registro {item.Id}: {d.Error}</li>;
+
+    const estadoSol = getEstadoSolicitud(d);
+    const estadoComp = d.Coordinador ? d.Coordinador.Estado : "";
+    const prioridad = getPrioridadEfectiva(d);
+    const hh = totalHorasHombre(d.Coordinador);
+    const t = medirTolerancia(d);
+    const critico = t && t.estado === 'fuera';
+
     return (
-        <div className="thin-scroll overflow-x-auto">
+        <li className={`border-l-2 px-4 py-3.5 ${critico ? 'border-alarm bg-alarm-wash/35' : 'border-transparent bg-white'}`}>
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <div className="flex items-baseline gap-2">
+                        {mostrarOrden && <span className="num text-[11px] text-iron-400">#{idx + 1}</span>}
+                        <span className="num text-[13px] font-medium text-iron-900">{d.SolicitudID || "—"}</span>
+                        <span className={`${marca} ${marcaPrioridad(prioridad)}`}>{prioridad}</span>
+                    </div>
+                    <p className="mt-1 truncate text-[14px] font-medium text-iron-900">{d.NombreComponente}</p>
+                    <p className="num mt-0.5 text-[11px] text-iron-500">{d.OT} · {d.Flota} · {d.Fecha}</p>
+                </div>
+                <div className="flex shrink-0 gap-1">
+                    <button onClick={() => onViewDetails(item)} title="Ver ficha" className="rounded-[3px] border border-iron-300 bg-white p-1.5 text-iron-600">
+                        <IconFicha />
+                    </button>
+                    {puedeGestionar && (
+                        <button onClick={() => onOpenManageModal(item)} title="Gestionar" className="rounded-[3px] border border-brand bg-brand p-1.5 text-white">
+                            <IconGestion />
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+                <span className={`${marca} ${marcaSolicitud(estadoSol)}`}>{estadoSol}</span>
+                {estadoComp && <span className={`${marca} ${marcaEstado(estadoComp)}`}>{estadoComp}</span>}
+                {hh > 0 && <span className="num text-[11px] text-iron-500">{hh} H/H</span>}
+            </div>
+
+            <div className="mt-3"><Tolerancia t={t} ancho="w-24" /></div>
+        </li>
+    );
+}
+
+export default function TablaSolicitudes({ items, onViewDetails, onOpenManageModal, puedeGestionar, mostrarOrden = false, vacio }) {
+    const cols = mostrarOrden ? 11 : 10;
+
+    return (
+        <>
+        {/* Fichas hasta lg; tabla completa de ahí en adelante. */}
+        <ul className="divide-y divide-iron-100 lg:hidden">
+            {items.length === 0
+                ? <li><Vacio vacio={vacio} /></li>
+                : items.map((item, idx) => (
+                    <Tarjeta
+                        key={item.Id} item={item} idx={idx}
+                        onViewDetails={onViewDetails} onOpenManageModal={onOpenManageModal}
+                        puedeGestionar={puedeGestionar} mostrarOrden={mostrarOrden}
+                    />
+                ))}
+        </ul>
+
+        <div className="thin-scroll hidden overflow-x-auto lg:block">
             <table className="w-full border-collapse text-left">
-                <thead className="border-b border-slate-200 bg-slate-50/60">
-                    <tr>
-                        {mostrarRanking && <th className={`${th} w-12 text-center`}>#</th>}
-                        <th className={th}>Solicitud</th>
-                        <th className={th}>Fecha</th>
+                <thead>
+                    <tr className="border-y border-iron-200 bg-iron-50">
+                        {mostrarOrden && <th className={`${th} w-10 text-center`}>Turno</th>}
+                        <th className={th}>N.º</th>
+                        <th className={th}>Ingreso</th>
                         <th className={th}>OT</th>
                         <th className={th}>Componente</th>
-                        <th className={th}>Soporte</th>
                         <th className={`${th} text-center`}>Prioridad</th>
-                        <th className={`${th} text-center`}>Estado solicitud</th>
-                        <th className={th}>Estado componente</th>
+                        <th className={th}>Plazo</th>
+                        <th className={`${th} text-center`}>Solicitud</th>
+                        <th className={th}>Estado</th>
                         <th className={`${th} text-right`}>H/H</th>
-                        <th className={`${th} text-center`}>Acciones</th>
+                        <th className={`${th} text-center`}>Acción</th>
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                     {items.length === 0 ? (
-                        <tr>
-                            <td colSpan={mostrarRanking ? 11 : 10} className="px-4 py-16 text-center">
-                                <svg className="mx-auto mb-3 h-9 w-9 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2h7M9 9h6M9 13h4" />
-                                    <circle cx="17.5" cy="17.5" r="3.5" />
-                                </svg>
-                                <p className="text-[13px] font-medium text-slate-500">{vacio || "No hay registros que coincidan con los filtros."}</p>
-                            </td>
-                        </tr>
+                        <tr><td colSpan={cols}><Vacio vacio={vacio} /></td></tr>
                     ) : (
                         items.map((item, idx) => {
                             const d = item.parsedData;
                             if (d.Error) {
                                 return (
-                                    <tr key={item.Id}>
-                                        <td colSpan={mostrarRanking ? 11 : 10} className="px-4 py-3 text-[13px] text-red-600">
+                                    <tr key={item.Id} className="border-b border-iron-100">
+                                        <td colSpan={cols} className="px-3 py-3 text-[12px] text-alarm">
                                             Registro {item.Id}: {d.Error}
                                         </td>
                                     </tr>
@@ -60,50 +130,80 @@ export default function TablaSolicitudes({ items, onViewDetails, onOpenManageMod
                             const estadoSol = getEstadoSolicitud(d);
                             const estadoComp = d.Coordinador ? d.Coordinador.Estado : "";
                             const prioridad = getPrioridadEfectiva(d);
-                            const esDelCoordinador = !!(d.Coordinador && d.Coordinador.PrioridadCoordinador);
+                            const pCoord = d.Coordinador && d.Coordinador.PrioridadCoordinador;
+                            const reclasificada = !!(pCoord && pCoord !== d.Prioridad);
                             const hh = totalHorasHombre(d.Coordinador);
+                            const t = medirTolerancia(d);
+                            const critico = t && t.estado === 'fuera';
+                            // Filo rojo al borde de la fila: la pieza vencida se ve sin leerla.
+                            const filo = `border-l-2 ${critico ? 'border-alarm' : 'border-transparent'}`;
 
                             return (
-                                <tr key={item.Id} className="transition-colors hover:bg-slate-50">
-                                    {mostrarRanking && (
-                                        <td className={`${td} text-center`}>
-                                            <span className={`tabular inline-flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-bold ${idx < 3 ? 'bg-cerrejon-orange text-white' : 'bg-slate-100 text-slate-500'}`}>
-                                                {idx + 1}
-                                            </span>
+                                <tr
+                                    key={item.Id}
+                                    className={`border-b border-iron-100 transition-colors hover:bg-brand-wash/45 ${critico ? 'bg-alarm-wash/35' : ''}`}
+                                >
+                                    {mostrarOrden && (
+                                        <td className={`${td} ${filo} text-center`}>
+                                            <span className="num text-[12px] font-medium text-iron-400">{idx + 1}</span>
                                         </td>
                                     )}
-                                    <td className={`${td} tabular font-semibold text-slate-900`}>{d.SolicitudID || "—"}</td>
-                                    <td className={`${td} tabular whitespace-nowrap text-slate-500`}>{d.Fecha}</td>
-                                    <td className={`${td} tabular font-semibold text-cerrejon-orangeDark`}>{d.OT}</td>
-                                    <td className={td}>
-                                        <span className="block max-w-[15rem] truncate font-medium text-slate-900" title={d.NombreComponente}>{d.NombreComponente}</span>
-                                        <span className="mt-0.5 block text-[11px] text-slate-500">{d.Flota} · PN {d.PN || "N/A"}</span>
+
+                                    <td className={`${td} num font-medium text-iron-900 ${mostrarOrden ? '' : filo}`}>
+                                        {d.SolicitudID || "—"}
                                     </td>
+
+                                    <td className={`${td} num whitespace-nowrap text-iron-500`}>{d.Fecha}</td>
+                                    <td className={`${td} num font-medium text-brand-deep`}>{d.OT}</td>
+
                                     <td className={td}>
-                                        <span className="block max-w-[11rem] truncate text-slate-600" title={d.Soporte}>{d.Soporte}</span>
-                                    </td>
-                                    <td className={`${td} text-center`}>
-                                        <span className={`${pill} ${prioridadTono(prioridad)}`}>{prioridad || "—"}</span>
-                                        <span className="mt-1 block text-[10px] text-slate-400">
-                                            {esDelCoordinador ? "coordinador" : "cliente"}
+                                        <span className="block max-w-[15rem] truncate font-medium text-iron-900" title={d.NombreComponente}>
+                                            {d.NombreComponente}
+                                        </span>
+                                        <span className="mt-0.5 block truncate text-[11px] text-iron-500" title={d.Soporte}>
+                                            <span className="num">{d.Flota}</span> · {d.Soporte}
                                         </span>
                                     </td>
+
+                                    {/* Solo se anota la procedencia cuando el coordinador cambió la prioridad
+                                        del cliente: repetir "coord" en cada fila no informa nada. */}
                                     <td className={`${td} text-center`}>
-                                        <span className={`${pill} ${estadoSolicitudTono(estadoSol)}`}>{estadoSol}</span>
+                                        <span
+                                            className={`${marca} ${marcaPrioridad(prioridad)}`}
+                                            title={reclasificada ? `El coordinador la subió o bajó desde ${d.Prioridad}` : undefined}
+                                        >
+                                            {prioridad || "—"}
+                                            {reclasificada && <span className="ml-1 opacity-70">*</span>}
+                                        </span>
                                     </td>
+
+                                    <td className={td}><Tolerancia t={t} /></td>
+
+                                    <td className={`${td} text-center`}>
+                                        <span className={`${marca} ${marcaSolicitud(estadoSol)}`}>{estadoSol}</span>
+                                    </td>
+
                                     <td className={td}>
                                         {estadoComp
-                                            ? <span className={`${pill} ${estadoTono(estadoComp)}`}>{estadoComp}</span>
-                                            : <span className="text-[11px] italic text-slate-400">Sin asignar</span>}
+                                            ? <span className={`${marca} ${marcaEstado(estadoComp)}`}>{estadoComp}</span>
+                                            : <span className="text-[11px] text-iron-400">Sin asignar</span>}
                                     </td>
-                                    <td className={`${td} tabular text-right font-medium text-slate-700`}>{hh || "—"}</td>
+
+                                    <td className={`${td} num text-right text-iron-700`}>{hh || "—"}</td>
+
                                     <td className={td}>
-                                        <div className="flex items-center justify-center gap-1.5">
-                                            <button onClick={() => onViewDetails(item)} title="Ver detalle" className="rounded-md border border-slate-200 bg-white p-1.5 text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-100 hover:text-slate-900">
-                                                <IconOjo />
+                                        <div className="flex items-center justify-center gap-1">
+                                            <button
+                                                onClick={() => onViewDetails(item)} title="Ver ficha"
+                                                className="rounded-[3px] border border-iron-300 bg-white p-1.5 text-iron-600 transition-colors hover:border-iron-400 hover:bg-iron-50 hover:text-iron-900"
+                                            >
+                                                <IconFicha />
                                             </button>
                                             {puedeGestionar && (
-                                                <button onClick={() => onOpenManageModal(item)} title="Gestionar" className="rounded-md bg-cerrejon-orange p-1.5 text-white transition-colors hover:bg-cerrejon-orangeDark">
+                                                <button
+                                                    onClick={() => onOpenManageModal(item)} title="Gestionar"
+                                                    className="rounded-[3px] border border-brand bg-brand p-1.5 text-white transition-colors hover:border-brand-deep hover:bg-brand-deep"
+                                                >
                                                     <IconGestion />
                                                 </button>
                                             )}
@@ -116,5 +216,6 @@ export default function TablaSolicitudes({ items, onViewDetails, onOpenManageMod
                 </tbody>
             </table>
         </div>
+        </>
     );
 }
