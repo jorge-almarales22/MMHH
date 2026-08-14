@@ -1,90 +1,115 @@
-import React, { useState } from 'react';
-import { campoFiltro, rotuloMini, btnTexto } from '../ui';
+import React from 'react';
+import { inputCls, selectCls } from '../ui';
 
-export function Campo({ titulo, ancho = "", children }) {
-    return (
-        <div className={ancho}>
-            <label className={rotuloMini}>{titulo}</label>
-            {children}
-        </div>
+/** Tile de conteo: es el filtro rapido de la cabecera. */
+export const Tile = ({ label, valor, color, activo, onClick }) => {
+    const contenido = (
+        <>
+            <p className="text-lg sm:text-2xl font-bold tabular-nums" style={{ color: color || '#0f172a' }}>{valor}</p>
+            <p className="text-[10px] text-slate-500 uppercase font-bold leading-tight mt-0.5">{label}</p>
+        </>
     );
-}
+    const base = 'text-left px-3 sm:px-4 py-2.5 rounded-xl border bg-white transition';
 
-export function SelectFiltro({ titulo, value, onChange, opciones, todos = "Todos", ancho = "" }) {
+    if (!onClick) return <div className={`${base} border-slate-200`}>{contenido}</div>;
+
     return (
-        <Campo titulo={titulo} ancho={ancho}>
-            <select value={value} onChange={onChange} className={`${campoFiltro} w-full`}>
-                <option value="">{todos}</option>
-                {opciones.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
-        </Campo>
+        <button
+            type="button"
+            onClick={onClick}
+            aria-pressed={activo}
+            className={`${base} cursor-pointer ${activo ? 'border-slate-900 ring-1 ring-slate-900' : 'border-slate-200 hover:border-slate-300'}`}
+        >
+            {contenido}
+        </button>
     );
-}
+};
 
-export function TextoFiltro({ titulo, value, onChange, placeholder, ancho = "" }) {
-    return (
-        <Campo titulo={titulo} ancho={ancho}>
-            <div className="relative">
-                <svg className="pointer-events-none absolute left-2.5 top-1/2 h-[15px] w-[15px] -translate-y-1/2 text-iron-400" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7">
-                    <circle cx="8.5" cy="8.5" r="5" />
-                    <path d="M12.5 12.5L17 17" strokeLinecap="square" />
+/** Pildoras excluyentes. */
+export const Pildoras = ({ opciones, valor, onChange }) => (
+    <div className="flex gap-1 overflow-x-auto -mx-1 px-1">
+        {opciones.map(o => (
+            <button
+                key={o.id || 'todas'}
+                type="button"
+                onClick={() => onChange(o.id)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap border transition cursor-pointer ${
+                    valor === o.id
+                        ? 'bg-slate-900 text-white border-slate-900'
+                        : 'bg-white text-slate-600 border-slate-300 hover:border-slate-400'
+                }`}
+            >
+                {o.label}
+            </button>
+        ))}
+    </div>
+);
+
+/** Control segmentado sobre fondo gris. */
+export const Segmentado = ({ opciones, valor, onChange }) => (
+    <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
+        {opciones.map(o => (
+            <button
+                key={o.id}
+                type="button"
+                onClick={() => onChange(o.id)}
+                aria-pressed={valor === o.id}
+                className={`px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-bold transition cursor-pointer ${
+                    valor === o.id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'
+                }`}
+            >
+                {o.label}
+            </button>
+        ))}
+    </div>
+);
+
+export const SelectFiltro = ({ titulo, value, onChange, opciones, todos = "Todos" }) => (
+    <label className="block">
+        <span className="block text-[11px] font-semibold text-slate-600 mb-1">{titulo}</span>
+        <select value={value} onChange={onChange} className={selectCls}>
+            <option value="">{todos}</option>
+            {opciones.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+    </label>
+);
+
+export const FechaFiltro = ({ titulo, value, onChange }) => (
+    <label className="block">
+        <span className="block text-[11px] font-semibold text-slate-600 mb-1">{titulo}</span>
+        <input type="date" value={value} onChange={onChange} className={inputCls} />
+    </label>
+);
+
+/** Panel de filtros avanzados, plegado por defecto. */
+export const FiltrosAvanzados = ({ abierto, onToggle, activos, onLimpiar, children }) => (
+    <div className="border-t border-slate-100 pt-3">
+        <div className="flex items-center justify-between gap-3">
+            <button
+                type="button"
+                onClick={onToggle}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 cursor-pointer"
+                aria-expanded={abierto}
+            >
+                <svg className={`w-3 h-3 transition-transform ${abierto ? 'rotate-90' : ''}`} viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">
+                    <path d="M4 2l5 4-5 4z" />
                 </svg>
-                <input
-                    type="text" value={value} onChange={onChange} placeholder={placeholder}
-                    className={`${campoFiltro} w-full !pl-8 !pr-2.5`}
-                />
-            </div>
-        </Campo>
-    );
-}
-
-export function FechaFiltro({ titulo, value, onChange, ancho = "" }) {
-    return (
-        <Campo titulo={titulo} ancho={ancho}>
-            <input type="date" value={value} onChange={onChange} className={`${campoFiltro} num w-full !pr-2.5`} />
-        </Campo>
-    );
-}
-
-/**
- * Los filtros ocupan mucho y se usan poco: quedan plegados tras una linea que
- * dice cuantos hay puestos. Se abren solos si ya hay alguno activo.
- */
-export function BarraFiltros({ children, onLimpiar, activos = 0 }) {
-    const [abierto, setAbierto] = useState(false);
-    const visible = abierto || activos > 0;
-
-    return (
-        <div className="no-print border-b border-iron-200 bg-iron-50">
-            <div className="flex items-center justify-between gap-4 px-5 py-2.5">
-                <button
-                    type="button" onClick={() => setAbierto(v => !v)}
-                    className="dial inline-flex items-center gap-2 text-[10px] text-iron-500 transition-colors hover:text-iron-900"
-                    aria-expanded={visible}
-                >
-                    <svg
-                        className={`h-3 w-3 transition-transform ${visible ? 'rotate-90' : ''}`}
-                        viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"
-                    >
-                        <path d="M4 2l5 4-5 4z" />
-                    </svg>
-                    Filtros
-                    {activos > 0 && (
-                        <span className="num rounded-[2px] bg-brand px-1.5 py-px text-[10px] font-medium text-white">
-                            {activos}
-                        </span>
-                    )}
-                </button>
+                Más filtros
                 {activos > 0 && (
-                    <button type="button" onClick={onLimpiar} className={btnTexto}>Limpiar filtros</button>
+                    <span className="ml-1 px-1.5 py-0.5 rounded-full bg-slate-900 text-white text-[10px] tabular-nums">{activos}</span>
                 )}
-            </div>
-
-            {visible && (
-                <div className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-iron-200 px-5 py-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
-                    {children}
-                </div>
+            </button>
+            {activos > 0 && (
+                <button type="button" onClick={onLimpiar} className="text-xs font-semibold text-slate-500 hover:text-slate-900 underline underline-offset-2 cursor-pointer">
+                    Limpiar filtros
+                </button>
             )}
         </div>
-    );
-}
+
+        {abierto && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3 mt-3">
+                {children}
+            </div>
+        )}
+    </div>
+);

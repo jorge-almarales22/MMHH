@@ -1,221 +1,196 @@
 import React from 'react';
-import { th, td, marca, marcaEstado, marcaSolicitud, marcaPrioridad } from '../ui';
+import { th, theadCls, theadTr, chip, chipEstado, chipSolicitud, chipPrioridad, chipPlazo, tarjetaVacia } from '../ui';
 import { getEstadoSolicitud, getPrioridadEfectiva, totalHorasHombre } from '../utils/helpers';
-import { medirTolerancia } from '../utils/tolerancia';
-import Tolerancia from './Tolerancia';
+import { medirTolerancia, etiquetaDesvio } from '../utils/tolerancia';
 
-const IconFicha = () => (
-    <svg className="h-[15px] w-[15px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <rect x="3.5" y="2.5" width="13" height="15" />
-        <path d="M6.5 6.5h7M6.5 10h7M6.5 13.5h4" strokeLinecap="square" />
-    </svg>
-);
+const ChipPlazo = ({ t }) => {
+    if (!t) return <span className="text-[11px] text-slate-400">—</span>;
+    return (
+        <span className={`${chip} ${chipPlazo(t.estado)}`} title={`${t.dias} de ${t.permitidos} días`}>
+            {etiquetaDesvio(t)}
+        </span>
+    );
+};
 
-/* Correderas: "ajustar la gestión" se lee mejor que un engranaje decorativo. */
-const IconGestion = () => (
-    <svg className="h-[15px] w-[15px]" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path d="M3 6h5M12 6h5M3 14h9M16 14h1" strokeLinecap="square" />
-        <path d="M10 3.5v5M14 11.5v5" strokeLinecap="square" />
-    </svg>
-);
-
-const Vacio = ({ vacio }) => (
-    <div className="px-4 py-16 text-center">
-        <svg className="mx-auto mb-4 h-10 w-10 text-iron-300" viewBox="0 0 40 40" fill="none" stroke="currentColor" strokeWidth="1.2">
-            <rect x="7" y="5" width="26" height="30" />
-            <path d="M12 12h16M12 19h16M12 26h9" strokeLinecap="square" />
-        </svg>
-        <p className="text-[13px] font-medium text-iron-600">{vacio || "Ninguna solicitud coincide con los filtros."}</p>
-        <p className="mt-1 text-[12px] text-iron-400">Ajuste o limpie los filtros para ver más registros.</p>
+const Acciones = ({ item, onViewDetails, onOpenManageModal, puedeGestionar }) => (
+    <div className="flex items-center justify-end gap-1.5">
+        <button
+            onClick={() => onViewDetails(item)}
+            className="px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:border-slate-400 cursor-pointer"
+        >
+            Ver
+        </button>
+        {puedeGestionar && (
+            <button
+                onClick={() => onOpenManageModal(item)}
+                className="px-2.5 py-1.5 rounded-lg bg-yellow-400 hover:bg-yellow-500 text-slate-900 text-xs font-bold cursor-pointer"
+            >
+                Gestionar
+            </button>
+        )}
     </div>
 );
 
-/** En pantalla angosta una tabla de once columnas no se lee: cada solicitud pasa a ficha. */
-function Tarjeta({ item, idx, onViewDetails, onOpenManageModal, puedeGestionar, mostrarOrden }) {
-    const d = item.parsedData;
-    if (d.Error) return <li className="px-4 py-3 text-[12px] text-alarm">Registro {item.Id}: {d.Error}</li>;
-
-    const estadoSol = getEstadoSolicitud(d);
-    const estadoComp = d.Coordinador ? d.Coordinador.Estado : "";
-    const prioridad = getPrioridadEfectiva(d);
-    const hh = totalHorasHombre(d.Coordinador);
-    const t = medirTolerancia(d);
-    const critico = t && t.estado === 'fuera';
-
-    return (
-        <li className={`border-l-2 px-4 py-3.5 ${critico ? 'border-alarm bg-alarm-wash/35' : 'border-transparent bg-white'}`}>
-            <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                    <div className="flex items-baseline gap-2">
-                        {mostrarOrden && <span className="num text-[11px] text-iron-400">#{idx + 1}</span>}
-                        <span className="num text-[13px] font-medium text-iron-900">{d.SolicitudID || "—"}</span>
-                        <span className={`${marca} ${marcaPrioridad(prioridad)}`}>{prioridad}</span>
-                    </div>
-                    <p className="mt-1 truncate text-[14px] font-medium text-iron-900">{d.NombreComponente}</p>
-                    <p className="num mt-0.5 text-[11px] text-iron-500">{d.OT} · {d.Flota} · {d.Fecha}</p>
-                </div>
-                <div className="flex shrink-0 gap-1">
-                    <button onClick={() => onViewDetails(item)} title="Ver ficha" className="rounded-[3px] border border-iron-300 bg-white p-1.5 text-iron-600">
-                        <IconFicha />
-                    </button>
-                    {puedeGestionar && (
-                        <button onClick={() => onOpenManageModal(item)} title="Gestionar" className="rounded-[3px] border border-brand bg-brand p-1.5 text-white">
-                            <IconGestion />
-                        </button>
-                    )}
-                </div>
-            </div>
-
-            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-                <span className={`${marca} ${marcaSolicitud(estadoSol)}`}>{estadoSol}</span>
-                {estadoComp && <span className={`${marca} ${marcaEstado(estadoComp)}`}>{estadoComp}</span>}
-                {hh > 0 && <span className="num text-[11px] text-iron-500">{hh} H/H</span>}
-            </div>
-
-            <div className="mt-3"><Tolerancia t={t} ancho="w-24" /></div>
-        </li>
-    );
-}
-
 export default function TablaSolicitudes({ items, onViewDetails, onOpenManageModal, puedeGestionar, mostrarOrden = false, vacio }) {
-    const cols = mostrarOrden ? 11 : 10;
+    if (items.length === 0) {
+        return (
+            <div className={tarjetaVacia}>
+                <p className="text-sm font-semibold text-slate-600">{vacio || "No hay solicitudes para este filtro"}</p>
+                <p className="text-xs text-slate-400 mt-1">Cambia el periodo o el estado para ver otras.</p>
+            </div>
+        );
+    }
 
     return (
         <>
-        {/* Fichas hasta lg; tabla completa de ahí en adelante. */}
-        <ul className="divide-y divide-iron-100 lg:hidden">
-            {items.length === 0
-                ? <li><Vacio vacio={vacio} /></li>
-                : items.map((item, idx) => (
-                    <Tarjeta
-                        key={item.Id} item={item} idx={idx}
-                        onViewDetails={onViewDetails} onOpenManageModal={onOpenManageModal}
-                        puedeGestionar={puedeGestionar} mostrarOrden={mostrarOrden}
-                    />
-                ))}
-        </ul>
+            {/* ---- Tabla (pantallas medianas y grandes) ---- */}
+            <div className="hidden md:block bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead className={theadCls}>
+                            <tr className={theadTr}>
+                                {mostrarOrden && <th className={th}>Turno</th>}
+                                <th className={th}>N.º</th>
+                                <th className={th}>Componente</th>
+                                <th className={th}>OT</th>
+                                <th className={th}>Prioridad</th>
+                                <th className={th}>Plazo</th>
+                                <th className={th}>Solicitud</th>
+                                <th className={th}>Estado</th>
+                                <th className={th}>H/H</th>
+                                <th className={`${th} text-right`}>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {items.map((item, idx) => {
+                                const d = item.parsedData;
+                                if (d.Error) {
+                                    return (
+                                        <tr key={item.Id}>
+                                            <td colSpan={mostrarOrden ? 10 : 9} className="px-4 py-3 text-xs text-red-700">
+                                                Registro {item.Id}: {d.Error}
+                                            </td>
+                                        </tr>
+                                    );
+                                }
+                                const estadoSol = getEstadoSolicitud(d);
+                                const estadoComp = d.Coordinador ? d.Coordinador.Estado : "";
+                                const prioridad = getPrioridadEfectiva(d);
+                                const pCoord = d.Coordinador && d.Coordinador.PrioridadCoordinador;
+                                const reclasificada = !!(pCoord && pCoord !== d.Prioridad);
+                                const hh = totalHorasHombre(d.Coordinador);
+                                const t = medirTolerancia(d);
+                                const vencida = t && t.estado === 'fuera';
 
-        <div className="thin-scroll hidden overflow-x-auto lg:block">
-            <table className="w-full border-collapse text-left">
-                <thead>
-                    <tr className="border-y border-iron-200 bg-iron-50">
-                        {mostrarOrden && <th className={`${th} w-10 text-center`}>Turno</th>}
-                        <th className={th}>N.º</th>
-                        <th className={th}>Ingreso</th>
-                        <th className={th}>OT</th>
-                        <th className={th}>Componente</th>
-                        <th className={`${th} text-center`}>Prioridad</th>
-                        <th className={th}>Plazo</th>
-                        <th className={`${th} text-center`}>Solicitud</th>
-                        <th className={th}>Estado</th>
-                        <th className={`${th} text-right`}>H/H</th>
-                        <th className={`${th} text-center`}>Acción</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {items.length === 0 ? (
-                        <tr><td colSpan={cols}><Vacio vacio={vacio} /></td></tr>
-                    ) : (
-                        items.map((item, idx) => {
-                            const d = item.parsedData;
-                            if (d.Error) {
                                 return (
-                                    <tr key={item.Id} className="border-b border-iron-100">
-                                        <td colSpan={cols} className="px-3 py-3 text-[12px] text-alarm">
-                                            Registro {item.Id}: {d.Error}
+                                    <tr
+                                        key={item.Id}
+                                        onDoubleClick={() => onViewDetails(item)}
+                                        tabIndex={0}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') onViewDetails(item); }}
+                                        title="Doble clic para abrir"
+                                        className={`hover:bg-slate-50 focus:bg-slate-50 focus:outline-none cursor-pointer select-none ${vencida ? 'bg-red-50/50' : ''}`}
+                                    >
+                                        {mostrarOrden && (
+                                            <td className="px-4 py-3 align-top">
+                                                <span className="text-xs font-bold text-slate-400 tabular-nums">{idx + 1}</span>
+                                            </td>
+                                        )}
+                                        <td className="px-4 py-3 whitespace-nowrap align-top">
+                                            <span className="font-bold text-slate-900 tabular-nums">{d.SolicitudID || "—"}</span>
+                                            <span className="block text-[10px] text-slate-400 tabular-nums">{d.Fecha}</span>
+                                        </td>
+                                        <td className="px-4 py-3 max-w-[240px] align-top">
+                                            <span className="text-slate-800">{d.NombreComponente}</span>
+                                            <span className="block text-[10px] text-slate-400 mt-0.5">
+                                                {d.Flota} · {d.Soporte}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 align-top">
+                                            <span className="text-xs font-semibold text-slate-700 tabular-nums">{d.OT}</span>
+                                        </td>
+                                        <td className="px-4 py-3 align-top">
+                                            <span
+                                                className={`${chip} ${chipPrioridad(prioridad)}`}
+                                                title={reclasificada ? `El coordinador la cambió desde ${d.Prioridad}` : undefined}
+                                            >
+                                                {prioridad || "—"}{reclasificada && ' *'}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-3 align-top"><ChipPlazo t={t} /></td>
+                                        <td className="px-4 py-3 align-top">
+                                            <span className={`${chip} ${chipSolicitud(estadoSol)}`}>{estadoSol}</span>
+                                        </td>
+                                        <td className="px-4 py-3 align-top">
+                                            {estadoComp
+                                                ? <span className={`${chip} ${chipEstado(estadoComp)}`}>{estadoComp}</span>
+                                                : <span className="text-[11px] text-slate-400">Sin asignar</span>}
+                                        </td>
+                                        <td className="px-4 py-3 align-top">
+                                            <span className="text-xs font-semibold text-slate-700 tabular-nums">{hh || "—"}</span>
+                                        </td>
+                                        <td className="px-4 py-3 align-top">
+                                            <Acciones item={item} onViewDetails={onViewDetails} onOpenManageModal={onOpenManageModal} puedeGestionar={puedeGestionar} />
                                         </td>
                                     </tr>
                                 );
-                            }
-                            const estadoSol = getEstadoSolicitud(d);
-                            const estadoComp = d.Coordinador ? d.Coordinador.Estado : "";
-                            const prioridad = getPrioridadEfectiva(d);
-                            const pCoord = d.Coordinador && d.Coordinador.PrioridadCoordinador;
-                            const reclasificada = !!(pCoord && pCoord !== d.Prioridad);
-                            const hh = totalHorasHombre(d.Coordinador);
-                            const t = medirTolerancia(d);
-                            const critico = t && t.estado === 'fuera';
-                            // Filo rojo al borde de la fila: la pieza vencida se ve sin leerla.
-                            const filo = `border-l-2 ${critico ? 'border-alarm' : 'border-transparent'}`;
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
-                            return (
-                                <tr
-                                    key={item.Id}
-                                    className={`border-b border-iron-100 transition-colors hover:bg-brand-wash/45 ${critico ? 'bg-alarm-wash/35' : ''}`}
-                                >
-                                    {mostrarOrden && (
-                                        <td className={`${td} ${filo} text-center`}>
-                                            <span className="num text-[12px] font-medium text-iron-400">{idx + 1}</span>
-                                        </td>
-                                    )}
+            {/* ---- Tarjetas (pantallas pequenas) ---- */}
+            <div className="md:hidden space-y-2">
+                {items.map((item, idx) => {
+                    const d = item.parsedData;
+                    if (d.Error) {
+                        return (
+                            <div key={item.Id} className="bg-white rounded-2xl border border-red-200 p-3 text-xs text-red-700">
+                                Registro {item.Id}: {d.Error}
+                            </div>
+                        );
+                    }
+                    const estadoSol = getEstadoSolicitud(d);
+                    const estadoComp = d.Coordinador ? d.Coordinador.Estado : "";
+                    const prioridad = getPrioridadEfectiva(d);
+                    const hh = totalHorasHombre(d.Coordinador);
+                    const t = medirTolerancia(d);
+                    const vencida = t && t.estado === 'fuera';
 
-                                    <td className={`${td} num font-medium text-iron-900 ${mostrarOrden ? '' : filo}`}>
-                                        {d.SolicitudID || "—"}
-                                    </td>
+                    return (
+                        <div
+                            key={item.Id}
+                            className={`bg-white rounded-2xl border p-3 ${vencida ? 'border-red-200 bg-red-50/40' : 'border-slate-200'}`}
+                        >
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        {mostrarOrden && <span className="text-[11px] font-bold text-slate-400 tabular-nums">#{idx + 1}</span>}
+                                        <span className="font-bold text-slate-900 tabular-nums">{d.SolicitudID || "—"}</span>
+                                        <span className={`${chip} ${chipPrioridad(prioridad)}`}>{prioridad}</span>
+                                    </div>
+                                    <p className="text-sm text-slate-800 mt-1 truncate">{d.NombreComponente}</p>
+                                    <p className="text-[11px] text-slate-400 mt-0.5 tabular-nums">
+                                        {d.OT} · {d.Flota} · {d.Fecha}
+                                    </p>
+                                </div>
+                                <ChipPlazo t={t} />
+                            </div>
 
-                                    <td className={`${td} num whitespace-nowrap text-iron-500`}>{d.Fecha}</td>
-                                    <td className={`${td} num font-medium text-brand-deep`}>{d.OT}</td>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-3">
+                                <span className={`${chip} ${chipSolicitud(estadoSol)}`}>{estadoSol}</span>
+                                {estadoComp && <span className={`${chip} ${chipEstado(estadoComp)}`}>{estadoComp}</span>}
+                                {hh > 0 && <span className="text-[11px] font-semibold text-slate-500 tabular-nums">{hh} H/H</span>}
+                            </div>
 
-                                    <td className={td}>
-                                        <span className="block max-w-[15rem] truncate font-medium text-iron-900" title={d.NombreComponente}>
-                                            {d.NombreComponente}
-                                        </span>
-                                        <span className="mt-0.5 block truncate text-[11px] text-iron-500" title={d.Soporte}>
-                                            <span className="num">{d.Flota}</span> · {d.Soporte}
-                                        </span>
-                                    </td>
-
-                                    {/* Solo se anota la procedencia cuando el coordinador cambió la prioridad
-                                        del cliente: repetir "coord" en cada fila no informa nada. */}
-                                    <td className={`${td} text-center`}>
-                                        <span
-                                            className={`${marca} ${marcaPrioridad(prioridad)}`}
-                                            title={reclasificada ? `El coordinador la subió o bajó desde ${d.Prioridad}` : undefined}
-                                        >
-                                            {prioridad || "—"}
-                                            {reclasificada && <span className="ml-1 opacity-70">*</span>}
-                                        </span>
-                                    </td>
-
-                                    <td className={td}><Tolerancia t={t} /></td>
-
-                                    <td className={`${td} text-center`}>
-                                        <span className={`${marca} ${marcaSolicitud(estadoSol)}`}>{estadoSol}</span>
-                                    </td>
-
-                                    <td className={td}>
-                                        {estadoComp
-                                            ? <span className={`${marca} ${marcaEstado(estadoComp)}`}>{estadoComp}</span>
-                                            : <span className="text-[11px] text-iron-400">Sin asignar</span>}
-                                    </td>
-
-                                    <td className={`${td} num text-right text-iron-700`}>{hh || "—"}</td>
-
-                                    <td className={td}>
-                                        <div className="flex items-center justify-center gap-1">
-                                            <button
-                                                onClick={() => onViewDetails(item)} title="Ver ficha"
-                                                className="rounded-[3px] border border-iron-300 bg-white p-1.5 text-iron-600 transition-colors hover:border-iron-400 hover:bg-iron-50 hover:text-iron-900"
-                                            >
-                                                <IconFicha />
-                                            </button>
-                                            {puedeGestionar && (
-                                                <button
-                                                    onClick={() => onOpenManageModal(item)} title="Gestionar"
-                                                    className="rounded-[3px] border border-brand bg-brand p-1.5 text-white transition-colors hover:border-brand-deep hover:bg-brand-deep"
-                                                >
-                                                    <IconGestion />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
-                            );
-                        })
-                    )}
-                </tbody>
-            </table>
-        </div>
+                            <div className="mt-3 pt-3 border-t border-slate-100">
+                                <Acciones item={item} onViewDetails={onViewDetails} onOpenManageModal={onOpenManageModal} puedeGestionar={puedeGestionar} />
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
         </>
     );
 }

@@ -8,23 +8,28 @@ export const getCurrentDateTime = () => {
     return `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())} ${p(n.getHours())}:${p(n.getMinutes())}`;
 };
 
+/** Los IDs emitidos antes del consecutivo eran aleatorios de 6 digitos. */
+const ID_ALEATORIO_MINIMO = 100000;
+
 /**
- * ID de solicitud numerico de 6 digitos, facil de memorizar y de dictar por radio.
- * Recibe los IDs ya existentes para evitar colisiones.
+ * Consecutivo de solicitud: 1, 2, 3... sin tope.
+ *
+ * Solo cuentan como consecutivos los numeros por debajo de 100000. Asi los IDs
+ * heredados —tanto los "MMHH-260813-..." como los aleatorios de seis digitos—
+ * no arrastran la numeracion hacia arriba y la serie arranca en 1 aunque la
+ * lista ya tenga registros. Antes de entregarlo se comprueba que nadie lo ocupe.
  */
 export const generateSolicitudID = (existingIds = []) => {
-    const usados = new Set((existingIds || []).map(id => String(id)));
-    for (let intento = 0; intento < 200; intento++) {
-        const id = String(Math.floor(100000 + Math.random() * 900000));
-        if (!usados.has(id)) return id;
-    }
-    // Fallback determinista: siguiente numero libre a partir del mayor existente
-    const numericos = [...usados].map(Number).filter(n => Number.isFinite(n) && n >= 100000 && n <= 999999);
-    const base = numericos.length ? Math.max(...numericos) : 100000;
-    for (let n = base + 1; n <= 999999; n++) {
-        if (!usados.has(String(n))) return String(n);
-    }
-    return String(Math.floor(100000 + Math.random() * 900000));
+    const usados = new Set((existingIds || []).map(id => String(id).trim()));
+
+    const consecutivos = [...usados]
+        .filter(id => /^\d+$/.test(id))
+        .map(Number)
+        .filter(n => Number.isFinite(n) && n < ID_ALEATORIO_MINIMO);
+
+    let siguiente = (consecutivos.length ? Math.max(...consecutivos) : 0) + 1;
+    while (usados.has(String(siguiente))) siguiente++;
+    return String(siguiente);
 };
 
 /** Estado de la solicitud: controlado por el sistema, no editable por ningun usuario. */

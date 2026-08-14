@@ -60,7 +60,17 @@ export const createItem = async (formData, evidenceFiles, compressImageFn, gener
     const digest = await getRequestDigest();
     const entityType = await getEntityType(SP_CONFIG.listTitle);
 
-    const solicitudID = generateSolicitudIDFn(existingIds);
+    // El consecutivo se calcula contra la lista recien leida, no contra la copia
+    // que el navegador tenga en pantalla, que puede llevar minutos de antiguedad.
+    let idsVigentes = existingIds;
+    try {
+        const frescos = await fetchItems();
+        idsVigentes = frescos.map(i => i.parsedData?.SolicitudID).filter(Boolean);
+    } catch (e) {
+        console.warn("No se pudo releer la lista; se numera con los datos en pantalla.", e);
+    }
+
+    const solicitudID = generateSolicitudIDFn(idsVigentes);
 
     let finalTipoRequerimiento = formData.TipoRequerimiento.map(req => {
         if (req === "Otro" && formData.TipoRequerimientoCustom["Otro"]) {

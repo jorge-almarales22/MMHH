@@ -1,11 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { btn, btnMini, dial } from '../ui';
+import { btnPrimario, btnBorde } from '../ui';
 
-/**
- * Confirmación de ingreso. El número es lo único que el solicitante debe
- * llevarse, así que se estampa: entra a escala grande y asienta, como el
- * troquel que marca la pieza al recibirla.
- */
+/** Confirmacion de solicitud creada: el numero es lo unico que hay que llevarse. */
 export default function ModalExito({ data, onClose }) {
     const [copiado, setCopiado] = useState(false);
 
@@ -30,68 +26,55 @@ export default function ModalExito({ data, onClose }) {
 
     return (
         <div
-            className="fixed inset-0 z-[120] flex items-center justify-center bg-dye-deep/75 p-4 backdrop-blur-[2px] animate-fade-in"
+            className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-[2px] flex items-end sm:items-center justify-center sm:p-4"
             onClick={onClose} role="dialog" aria-modal="true" aria-labelledby="exito-titulo"
         >
             <div
-                className="w-full max-w-sm border border-iron-300 bg-white shadow-2xl shadow-dye-deep/40 animate-card-in"
+                className="bg-white w-full sm:max-w-sm rounded-t-2xl sm:rounded-2xl shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
             >
-                <div className="border-b border-iron-200 bg-dye px-6 py-3">
-                    <span className="dial text-[10px] text-scribe">Solicitud registrada</span>
-                </div>
-
-                <div className="px-6 py-7 text-center">
-                    <h3 id="exito-titulo" className={`${dial} !text-iron-500`}>Número de solicitud</h3>
-
-                    <div className="mt-3 animate-stamp">
-                        <span className="num inline-block border-y-2 border-brand px-4 py-1.5 text-[44px] font-medium leading-none tracking-[0.08em] text-brand-deep">
-                            {data.id}
-                        </span>
+                <div className="px-6 pt-7 pb-6 text-center">
+                    <div className="w-12 h-12 mx-auto rounded-full bg-emerald-100 grid place-items-center mb-4">
+                        <svg className="w-6 h-6 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M4.5 12.5l5 5 10-11" />
+                        </svg>
                     </div>
 
-                    <div className="mt-4 flex justify-center">
-                        <button type="button" onClick={copiar} className={btnMini}>
-                            {copiado ? (
-                                <>
-                                    <svg className="h-3.5 w-3.5 text-spec" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 10.5l4 4 8-9" strokeLinecap="square" /></svg>
-                                    Copiado
-                                </>
-                            ) : (
-                                <>
-                                    <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="7" y="3" width="10" height="12" /><path d="M13 17H3V5" strokeLinecap="square" /></svg>
-                                    Copiar número
-                                </>
-                            )}
-                        </button>
+                    <h3 id="exito-titulo" className="text-lg font-bold text-slate-900">Solicitud registrada</h3>
+                    <p className="text-sm text-slate-500 mt-1">Ya está en la cola del taller.</p>
+
+                    <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                        <p className="text-[10px] uppercase tracking-wide text-slate-500 font-bold">Número de solicitud</p>
+                        <p className="text-4xl font-bold text-slate-900 tabular-nums mt-1">{data.id}</p>
+                        <div className="mt-3 flex justify-center">
+                            <button type="button" onClick={copiar} className={btnBorde}>
+                                {copiado ? 'Copiado' : 'Copiar número'}
+                            </button>
+                        </div>
                     </div>
 
-                    <p className="mt-5 text-[13px] leading-relaxed text-iron-600">
-                        Anote este número: con él consulta el avance de la pieza en el taller.
-                    </p>
-
-                    <dl className="mt-5 space-y-px border border-iron-200 bg-iron-200 text-left">
+                    <dl className="mt-4 space-y-1.5 text-left">
                         {data.ot && (
-                            <div className="flex justify-between gap-3 bg-white px-3 py-2">
-                                <dt className="dial text-[10px] text-iron-500">OT</dt>
-                                <dd className="num text-[12px] font-medium text-iron-800">{data.ot}</dd>
+                            <div className="flex justify-between gap-3 text-xs">
+                                <dt className="text-slate-500">OT</dt>
+                                <dd className="font-semibold text-slate-800 tabular-nums">{data.ot}</dd>
                             </div>
                         )}
                         {data.componente && (
-                            <div className="flex justify-between gap-3 bg-white px-3 py-2">
-                                <dt className="dial text-[10px] text-iron-500">Componente</dt>
-                                <dd className="truncate text-[12px] font-medium text-iron-800">{data.componente}</dd>
+                            <div className="flex justify-between gap-3 text-xs">
+                                <dt className="text-slate-500">Componente</dt>
+                                <dd className="font-semibold text-slate-800 truncate">{data.componente}</dd>
                             </div>
                         )}
-                        <div className="flex justify-between gap-3 bg-white px-3 py-2">
-                            <dt className="dial text-[10px] text-iron-500">Estado</dt>
-                            <dd className="text-[12px] font-medium text-brand-deep">Pendiente</dd>
+                        <div className="flex justify-between gap-3 text-xs">
+                            <dt className="text-slate-500">Estado</dt>
+                            <dd className="font-semibold text-orange-700">Pendiente</dd>
                         </div>
                     </dl>
                 </div>
 
-                <div className="border-t border-iron-200 bg-iron-50 px-6 py-4">
-                    <button type="button" onClick={onClose} className={`${btn} w-full`} autoFocus>Listo</button>
+                <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 rounded-b-2xl">
+                    <button type="button" onClick={onClose} className={`${btnPrimario} w-full`} autoFocus>Listo</button>
                 </div>
             </div>
         </div>

@@ -1,36 +1,38 @@
 import React, { useRef } from 'react';
 import { PROCESOS_COORDINADOR, ESTADOS_COORDINADOR, AREAS_PROCESO, PRIORIDADES } from '../constants';
 import { esEstadoCierre, getEstadoSolicitud, nuevoProceso } from '../utils/helpers';
-import { medirTolerancia } from '../utils/tolerancia';
-import { ToleranciaDetalle } from './Tolerancia';
-import { campo, campoMini, rotulo, rotuloMini, btn, btnLinea, btnMini, dial, marca, marcaSolicitud } from '../ui';
+import { medirTolerancia, etiquetaDesvio, ETIQUETA_TOLERANCIA } from '../utils/tolerancia';
+import { inputCls, selectCls, btnPrimario, btnSecundario, btnBorde, chip, chipSolicitud, chipPlazo } from '../ui';
 
-const IconX = (p) => (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="square" {...p}>
-        <path d="M5 5l10 10M15 5L5 15" />
-    </svg>
-);
-
-const IconMas = (p) => (
-    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="square" {...p}>
-        <path d="M10 4v12M4 10h12" />
-    </svg>
-);
-
-function Bloque({ titulo, nota, accion, children, ultimo = false }) {
-    return (
-        <section className={`px-6 py-5 ${ultimo ? '' : 'border-b border-iron-200'}`}>
-            <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                <div>
-                    <h3 className={dial}>{titulo}</h3>
-                    {nota && <p className="mt-1 max-w-xl text-[12px] leading-relaxed text-iron-500">{nota}</p>}
+const Seccion = ({ numero, titulo, descripcion, accion, children }) => (
+    <section className="px-4 sm:px-6 py-5 border-b border-slate-100 last:border-b-0">
+        <div className="flex gap-3 sm:gap-4">
+            <span className="hidden sm:grid shrink-0 w-7 h-7 rounded-full bg-slate-900 text-white text-xs font-bold place-items-center mt-0.5">
+                {numero}
+            </span>
+            <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                        <h3 className="font-bold text-slate-900 text-sm">
+                            <span className="sm:hidden text-slate-400">{numero}. </span>{titulo}
+                        </h3>
+                        {descripcion && <p className="text-xs text-slate-500 mt-0.5">{descripcion}</p>}
+                    </div>
+                    {accion}
                 </div>
-                {accion}
+                <div className="mt-4">{children}</div>
             </div>
-            {children}
-        </section>
-    );
-}
+        </div>
+    </section>
+);
+
+const Campo = ({ label, ayuda, children }) => (
+    <label className="block">
+        <span className="block text-xs font-semibold text-slate-700 mb-1.5">{label}</span>
+        {children}
+        {ayuda && <span className="block text-[11px] text-slate-400 mt-1">{ayuda}</span>}
+    </label>
+);
 
 export default function ModalGestionCoord({
     manageModalItem, setManageModalItem,
@@ -77,315 +79,288 @@ export default function ModalGestionCoord({
     });
 
     return (
-        <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-dye-deep/70 p-3 backdrop-blur-[2px] animate-fade-in sm:p-6">
-            <div className="my-auto w-full max-w-5xl border border-iron-300 bg-white shadow-2xl shadow-dye-deep/30 animate-card-in">
-
-                {/* Cabecera: identidad de la pieza y lectura de plazo */}
-                <div className="border-b border-iron-200 bg-dye px-6 py-5 text-white">
-                    <div className="flex items-start justify-between gap-4">
+        <div
+            className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-[2px] flex items-end sm:items-center justify-center sm:p-4"
+            onClick={() => setManageModalItem(null)}
+        >
+            <div
+                className="bg-white w-full sm:max-w-3xl rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] sm:max-h-[88vh] flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Cabecera */}
+                <div className="px-4 sm:px-6 py-4 border-b border-slate-200 shrink-0">
+                    <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                            <span className="dial text-[10px] text-scribe">Hoja de ruta</span>
-                            <h2 className="mt-1 truncate text-[20px] font-semibold leading-tight tracking-tight">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className={`${chip} ${chipSolicitud(estadoSol)}`}>{estadoSol}</span>
+                                {tol && <span className={`${chip} ${chipPlazo(tol.estado)}`}>{ETIQUETA_TOLERANCIA[tol.estado]} · {etiquetaDesvio(tol)}</span>}
+                            </div>
+                            <h2 className="text-lg font-bold text-slate-900 mt-2 truncate">
                                 {d.NombreComponente || "Requerimiento"}
                             </h2>
-                            <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-white/50">
-                                <span>N.º <strong className="num font-medium text-scribe">{d.SolicitudID || "—"}</strong></span>
-                                <span>OT <strong className="num font-medium text-white">{d.OT}</strong></span>
-                                <span>Flota <strong className="num font-medium text-white">{d.Flota}</strong></span>
-                                <span>Ingreso <strong className="num font-medium text-white">{d.Fecha}</strong></span>
-                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5 tabular-nums">
+                                N.º {d.SolicitudID || "—"} · OT {d.OT} · {d.Flota} · ingreso {d.Fecha}
+                            </p>
                         </div>
                         <button
                             type="button" onClick={() => setManageModalItem(null)} aria-label="Cerrar"
-                            className="shrink-0 rounded-[3px] border border-white/15 p-2 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+                            className="shrink-0 w-8 h-8 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700 grid place-items-center cursor-pointer"
                         >
-                            <IconX className="h-4 w-4" />
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
                     </div>
                 </div>
 
-                <form id="form-gestion-coord" onSubmit={onSaveCoordResponse} className="thin-scroll max-h-[70vh] overflow-y-auto">
+                <form id="form-gestion-coord" onSubmit={onSaveCoordResponse} className="overflow-y-auto flex-1">
 
-                    {/* Estado de la solicitud + plazo */}
-                    <div className="grid grid-cols-1 gap-5 border-b border-iron-200 bg-iron-50 px-6 py-5 sm:grid-cols-2">
-                        <div>
-                            <span className={rotuloMini}>Estado de la solicitud</span>
-                            <div className="flex items-center gap-2.5">
-                                <span className={`${marca} ${marcaSolicitud(estadoSol)}`}>{estadoSol}</span>
-                                <span className="text-[11px] text-iron-500">Lo asigna el sistema</span>
-                            </div>
-                            <p className="mt-2 text-[12px] leading-relaxed text-iron-500">
-                                {estadoSol === "Pendiente"
-                                    ? "Al guardar, esta solicitud pasa a Gestionado. El cambio no se revierte."
-                                    : "Quedó registrada como gestionada. Nadie puede devolverla a Pendiente."}
-                            </p>
-                        </div>
-                        <div className="sm:border-l sm:border-iron-200 sm:pl-5">
-                            <span className={rotuloMini}>Plazo</span>
-                            <ToleranciaDetalle t={tol} />
-                        </div>
+                    <div className="bg-blue-50 px-4 sm:px-6 py-3 flex items-start gap-2 text-sm text-slate-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600 mt-2 shrink-0" aria-hidden="true" />
+                        <p>
+                            {estadoSol === "Pendiente"
+                                ? <>El estado de la solicitud lo asigna el sistema. Al guardar pasa a <strong>Gestionado</strong> y no se revierte.</>
+                                : <>El estado de la solicitud lo asigna el sistema. Ya quedó como <strong>Gestionado</strong> y nadie puede devolverla a Pendiente.</>}
+                        </p>
                     </div>
 
-                    {/* Ruta de operaciones: aquí la numeración sí informa, es una secuencia real. */}
-                    <Bloque
-                        titulo="Ruta de procesos"
-                        nota="Cada operación lleva el área donde se ejecuta y las horas hombre que consume."
+                    <Seccion
+                        numero={1}
+                        titulo="Procesos requeridos"
+                        descripcion="Cada proceso lleva el área donde se ejecuta y sus horas hombre."
                         accion={
-                            <div className="flex items-center gap-3">
-                                <span className="num text-[12px] text-iron-500">{totalHH} H/H</span>
-                                <button type="button" onClick={addProceso} className={btnMini}>
-                                    <IconMas className="h-3.5 w-3.5" /> Agregar operación
-                                </button>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-slate-500 tabular-nums">{totalHH} H/H</span>
+                                <button type="button" onClick={addProceso} className={btnBorde}>+ Agregar</button>
                             </div>
                         }
                     >
-                        <div className="border border-iron-200">
+                        <div className="space-y-2">
                             {coordForm.Procesos.map((proc, i) => {
                                 const subs = PROCESOS_COORDINADOR[proc.ProcesoRequerido] || [];
                                 return (
-                                    <div key={i} className={`flex gap-4 p-4 ${i > 0 ? 'border-t border-iron-200' : ''}`}>
-                                        <div className="flex flex-col items-center pt-1">
-                                            <span className="num flex h-6 w-6 items-center justify-center border border-iron-300 bg-iron-50 text-[11px] font-medium text-iron-600">
-                                                {i + 1}
-                                            </span>
-                                            {i < coordForm.Procesos.length - 1 && <span className="mt-1 w-px flex-1 bg-iron-200" aria-hidden="true" />}
+                                    <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-[11px] font-bold text-slate-500 uppercase">Proceso {i + 1}</span>
+                                            {coordForm.Procesos.length > 1 && (
+                                                <button
+                                                    type="button" onClick={() => delProceso(i)}
+                                                    className="text-xs font-semibold text-red-600 hover:text-red-800 cursor-pointer"
+                                                >
+                                                    Quitar
+                                                </button>
+                                            )}
                                         </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <Campo label="Proceso requerido">
+                                                <select value={proc.ProcesoRequerido} onChange={(e) => setProceso(i, "ProcesoRequerido", e.target.value)} className={selectCls} required>
+                                                    {Object.keys(PROCESOS_COORDINADOR).map(p => <option key={p} value={p}>{p}</option>)}
+                                                </select>
+                                                {proc.ProcesoRequerido === "Otro" && (
+                                                    <input type="text" value={proc.ProcesoRequeridoCustom} onChange={(e) => setProceso(i, "ProcesoRequeridoCustom", e.target.value)} className={`${inputCls} mt-2`} placeholder="¿Qué proceso?" required />
+                                                )}
+                                            </Campo>
 
-                                        <div className="min-w-0 flex-1">
-                                            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                                                <div>
-                                                    <label className={rotuloMini}>Proceso</label>
-                                                    <select value={proc.ProcesoRequerido} onChange={(e) => setProceso(i, "ProcesoRequerido", e.target.value)} className={campoMini} required>
-                                                        {Object.keys(PROCESOS_COORDINADOR).map(p => <option key={p} value={p}>{p}</option>)}
-                                                    </select>
-                                                    {proc.ProcesoRequerido === "Otro" && (
-                                                        <input type="text" value={proc.ProcesoRequeridoCustom} onChange={(e) => setProceso(i, "ProcesoRequeridoCustom", e.target.value)} className={`${campoMini} mt-2`} placeholder="¿Qué proceso?" required />
-                                                    )}
-                                                </div>
+                                            <Campo label="Subproceso requerido">
+                                                {subs.length === 0 ? (
+                                                    <input type="text" readOnly value="No requiere" className={`${inputCls} bg-slate-100 text-slate-400`} />
+                                                ) : subs.length === 1 && subs[0] === "Otro" ? (
+                                                    <input type="text" value={proc.SubprocesoRequeridoCustom} onChange={(e) => setProceso(i, "SubprocesoRequeridoCustom", e.target.value)} className={inputCls} placeholder="¿Cuál subproceso?" required />
+                                                ) : (
+                                                    <>
+                                                        <select value={proc.SubprocesoRequerido} onChange={(e) => setProceso(i, "SubprocesoRequerido", e.target.value)} className={selectCls} required>
+                                                            {subs.map(s => <option key={s} value={s}>{s}</option>)}
+                                                        </select>
+                                                        {proc.SubprocesoRequerido === "Otro" && (
+                                                            <input type="text" value={proc.SubprocesoRequeridoCustom} onChange={(e) => setProceso(i, "SubprocesoRequeridoCustom", e.target.value)} className={`${inputCls} mt-2`} placeholder="¿Cuál subproceso?" required />
+                                                        )}
+                                                    </>
+                                                )}
+                                            </Campo>
 
-                                                <div>
-                                                    <label className={rotuloMini}>Subproceso</label>
-                                                    {subs.length === 0 ? (
-                                                        <input type="text" readOnly value="No requiere" className={`${campoMini} !bg-iron-100 text-iron-400`} />
-                                                    ) : subs.length === 1 && subs[0] === "Otro" ? (
-                                                        <input type="text" value={proc.SubprocesoRequeridoCustom} onChange={(e) => setProceso(i, "SubprocesoRequeridoCustom", e.target.value)} className={campoMini} placeholder="¿Cuál subproceso?" required />
-                                                    ) : (
-                                                        <>
-                                                            <select value={proc.SubprocesoRequerido} onChange={(e) => setProceso(i, "SubprocesoRequerido", e.target.value)} className={campoMini} required>
-                                                                {subs.map(s => <option key={s} value={s}>{s}</option>)}
-                                                            </select>
-                                                            {proc.SubprocesoRequerido === "Otro" && (
-                                                                <input type="text" value={proc.SubprocesoRequeridoCustom} onChange={(e) => setProceso(i, "SubprocesoRequeridoCustom", e.target.value)} className={`${campoMini} mt-2`} placeholder="¿Cuál subproceso?" required />
-                                                            )}
-                                                        </>
-                                                    )}
-                                                </div>
+                                            <Campo label="Área de proceso requerido">
+                                                <select value={proc.AreaProceso || ""} onChange={(e) => setProceso(i, "AreaProceso", e.target.value)} className={selectCls} required>
+                                                    {AREAS_PROCESO.map(a => <option key={a} value={a}>{a}</option>)}
+                                                </select>
+                                                {proc.AreaProceso === "Otro" && (
+                                                    <input type="text" value={proc.AreaProcesoCustom || ""} onChange={(e) => setProceso(i, "AreaProcesoCustom", e.target.value)} className={`${inputCls} mt-2`} placeholder="¿Cuál área?" required />
+                                                )}
+                                            </Campo>
 
-                                                <div>
-                                                    <label className={rotuloMini}>Área de proceso</label>
-                                                    <select value={proc.AreaProceso || ""} onChange={(e) => setProceso(i, "AreaProceso", e.target.value)} className={campoMini} required>
-                                                        {AREAS_PROCESO.map(a => <option key={a} value={a}>{a}</option>)}
-                                                    </select>
-                                                    {proc.AreaProceso === "Otro" && (
-                                                        <input type="text" value={proc.AreaProcesoCustom || ""} onChange={(e) => setProceso(i, "AreaProcesoCustom", e.target.value)} className={`${campoMini} mt-2`} placeholder="¿Cuál área?" required />
-                                                    )}
-                                                </div>
-
-                                                <div>
-                                                    <label className={rotuloMini}>Horas hombre estimado</label>
-                                                    <div className="relative">
-                                                        <input
-                                                            type="number" min="0" step="0.5" value={proc.EstimadoHorasHombre ?? 0}
-                                                            onChange={(e) => setProceso(i, "EstimadoHorasHombre", e.target.value)}
-                                                            className={`${campoMini} num sin-spinner !pr-11`} required
-                                                        />
-                                                        <span className="dial pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-iron-400">H/H</span>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                            <Campo label="Horas hombre estimado">
+                                                <input
+                                                    type="number" min="0" step="0.5" value={proc.EstimadoHorasHombre ?? 0}
+                                                    onChange={(e) => setProceso(i, "EstimadoHorasHombre", e.target.value)}
+                                                    className={inputCls} required
+                                                />
+                                            </Campo>
                                         </div>
-
-                                        {coordForm.Procesos.length > 1 && (
-                                            <button
-                                                type="button" onClick={() => delProceso(i)} aria-label={`Quitar operación ${i + 1}`}
-                                                className="h-fit shrink-0 rounded-[3px] p-1.5 text-iron-400 transition-colors hover:bg-alarm-wash hover:text-alarm"
-                                            >
-                                                <IconX className="h-4 w-4" />
-                                            </button>
-                                        )}
                                     </div>
                                 );
                             })}
                         </div>
-                    </Bloque>
+                    </Seccion>
 
-                    <Bloque titulo="Seguimiento" nota="La prioridad que fije aquí es la que manda en la cola y en las métricas.">
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-                            <div>
-                                <label className={rotulo}>Estado del componente</label>
-                                <select name="Estado" value={coordForm.Estado} onChange={setCampo} className={campoMini} required>
+                    <Seccion numero={2} titulo="Seguimiento" descripcion="La prioridad que fijes aquí es la que manda en la cola y en las métricas.">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <Campo label="Estado del componente">
+                                <select name="Estado" value={coordForm.Estado} onChange={setCampo} className={selectCls} required>
                                     {ESTADOS_COORDINADOR.map(e => <option key={e} value={e}>{e}</option>)}
                                 </select>
-                            </div>
-                            <div>
-                                <label className={rotulo}>Prioridad del coordinador</label>
-                                <select name="PrioridadCoordinador" value={coordForm.PrioridadCoordinador} onChange={setCampo} className={campoMini} required>
+                            </Campo>
+                            <Campo label="Prioridad del coordinador">
+                                <select name="PrioridadCoordinador" value={coordForm.PrioridadCoordinador} onChange={setCampo} className={selectCls} required>
                                     {Object.keys(PRIORIDADES).map(p => (
                                         <option key={p} value={p}>{p} — {PRIORIDADES[p]} {PRIORIDADES[p] === 1 ? "día" : "días"}</option>
                                     ))}
                                 </select>
-                            </div>
-                            <div>
-                                <label className={rotulo}>Fecha estimada</label>
-                                <input type="date" name="FechaEstimado" value={coordForm.FechaEstimado} onChange={setCampo} className={`${campoMini} num`} required />
-                            </div>
-                            <div>
-                                <label className={rotulo}>Se avisó al cliente</label>
-                                <select name="NotificacionCliente" value={coordForm.NotificacionCliente} onChange={setCampo} className={campoMini} required>
+                            </Campo>
+                            <Campo label="Fecha estimada">
+                                <input type="date" name="FechaEstimado" value={coordForm.FechaEstimado} onChange={setCampo} className={inputCls} required />
+                            </Campo>
+                            <Campo label="Se avisó al cliente">
+                                <select name="NotificacionCliente" value={coordForm.NotificacionCliente} onChange={setCampo} className={selectCls} required>
                                     <option value="Si">Sí</option>
                                     <option value="No">No</option>
                                 </select>
-                            </div>
-                            <div className="md:col-span-2 lg:col-span-4">
-                                <label className={rotulo}>Complemento MMHH</label>
-                                <input type="text" name="ComplementoMMHH" value={coordForm.ComplementoMMHH} onChange={setCampo} className={campoMini} placeholder="Información técnica complementaria" />
+                            </Campo>
+                            <div className="sm:col-span-2 lg:col-span-4">
+                                <Campo label="Complemento MMHH">
+                                    <input type="text" name="ComplementoMMHH" value={coordForm.ComplementoMMHH} onChange={setCampo} className={inputCls} placeholder="Información técnica complementaria" />
+                                </Campo>
                             </div>
                         </div>
-                    </Bloque>
+                    </Seccion>
 
-                    {/* Historial: sellos sobre la hoja de ruta. No se editan ni se borran. */}
-                    <Bloque
+                    <Seccion
+                        numero={3}
                         titulo="Historial de comentarios"
-                        nota="Queda para siempre, con quién lo escribió y cuándo. No se edita ni se elimina."
-                        accion={<span className="num text-[12px] text-iron-500">{historial.length}</span>}
+                        descripcion="Queda registrado con autor y fecha. No se edita ni se elimina."
+                        accion={<span className="text-xs font-bold text-slate-500 tabular-nums">{historial.length}</span>}
                     >
                         {historial.length === 0 ? (
-                            <p className="border border-dashed border-iron-300 bg-iron-50 px-4 py-5 text-center text-[12px] text-iron-500">
-                                Todavía nadie ha comentado esta solicitud. El primer comentario abre el historial.
-                            </p>
+                            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center">
+                                <p className="text-xs text-slate-500">Todavía nadie ha comentado esta solicitud.</p>
+                            </div>
                         ) : (
-                            <ol className="thin-scroll max-h-64 space-y-px overflow-y-auto border border-iron-200 bg-iron-200">
+                            <ol className="space-y-2 max-h-64 overflow-y-auto">
                                 {historial.map((c, i) => (
-                                    <li key={i} className={`px-4 py-3 ${c.EsCierre ? 'border-l-2 border-spec bg-spec-wash' : 'bg-white'}`}>
-                                        <div className="mb-1.5 flex flex-wrap items-baseline gap-2">
-                                            <span className="text-[12px] font-semibold text-iron-800">{c.Autor || "Coordinador"}</span>
-                                            {c.EsCierre && <span className="dial text-[9px] text-spec">Cierre</span>}
-                                            <span className="num ml-auto text-[11px] text-iron-400">{c.Fecha}</span>
+                                    <li
+                                        key={i}
+                                        className={`rounded-lg border px-3 py-2.5 ${c.EsCierre ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'}`}
+                                    >
+                                        <div className="flex flex-wrap items-baseline gap-2 mb-1">
+                                            <span className="text-xs font-bold text-slate-800">{c.Autor || "Coordinador"}</span>
+                                            {c.EsCierre && (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-600 text-white">CIERRE</span>
+                                            )}
+                                            <span className="ml-auto text-[11px] text-slate-400 tabular-nums">{c.Fecha}</span>
                                         </div>
-                                        <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-iron-700">{c.Texto}</p>
+                                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{c.Texto}</p>
                                     </li>
                                 ))}
                             </ol>
                         )}
 
-                        <div className="mt-4">
-                            <label className={rotulo}>Escribir un comentario</label>
-                            <textarea
-                                name="NuevoComentario" value={coordForm.NuevoComentario} onChange={setCampo}
-                                rows="3" className={`${campoMini} resize-y`}
-                                placeholder="Qué se hizo, qué se encontró o qué se acordó con el cliente."
-                            />
-                            <p className="mt-1.5 text-[11px] text-iron-500">
-                                Se firma como <strong className="font-semibold text-iron-700">{userAuth.name}</strong> con la fecha de hoy.
-                            </p>
+                        <div className="mt-3">
+                            <Campo label="Escribir un comentario" ayuda={`Se firma como ${userAuth.name} con la fecha de hoy.`}>
+                                <textarea
+                                    name="NuevoComentario" value={coordForm.NuevoComentario} onChange={setCampo}
+                                    rows="3" className={`${inputCls} resize-y`}
+                                    placeholder="Qué se hizo, qué se encontró o qué se acordó con el cliente."
+                                />
+                            </Campo>
                         </div>
-                    </Bloque>
+                    </Seccion>
 
                     {enCierre && (
-                        <Bloque
+                        <Seccion
+                            numero={4}
                             titulo="Comentario de cierre"
-                            nota={`Obligatorio para dejar el componente en "${coordForm.Estado}". Queda marcado aparte en el historial.`}
+                            descripcion={`Obligatorio para dejar el componente en "${coordForm.Estado}".`}
                         >
                             {cierrePrevio ? (
-                                <div className="border-l-2 border-spec bg-spec-wash px-4 py-3">
-                                    <div className="mb-1.5 flex items-baseline gap-2">
-                                        <span className="dial text-[9px] text-spec">Cierre registrado</span>
-                                        <span className="num ml-auto text-[11px] text-iron-400">{cierrePrevio.Fecha}</span>
+                                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+                                    <div className="flex items-baseline gap-2 mb-1">
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-600 text-white">CIERRE REGISTRADO</span>
+                                        <span className="ml-auto text-[11px] text-slate-400 tabular-nums">{cierrePrevio.Fecha}</span>
                                     </div>
-                                    <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-iron-700">{cierrePrevio.Texto}</p>
-                                    <p className="mt-2 text-[11px] text-iron-500">Por {cierrePrevio.Autor}</p>
+                                    <p className="text-sm text-slate-700 whitespace-pre-wrap">{cierrePrevio.Texto}</p>
+                                    <p className="text-[11px] text-slate-500 mt-2">Por {cierrePrevio.Autor}</p>
                                 </div>
                             ) : (
                                 <textarea
                                     name="ComentarioCierre" value={coordForm.ComentarioCierre} onChange={setCampo}
-                                    rows="4" className={`${campo} resize-y border-l-2 !border-l-spec`}
+                                    rows="4" className={`${inputCls} resize-y border-emerald-300 focus:border-emerald-500 focus:ring-emerald-200`}
                                     placeholder="Trabajo ejecutado, resultado final y condiciones en que se entrega el componente."
                                     required
                                 />
                             )}
-                        </Bloque>
+                        </Seccion>
                     )}
 
-                    <Bloque
+                    <Seccion
+                        numero={enCierre ? 5 : 4}
                         titulo="Demoras"
-                        nota="Lo que impidió cumplir el plazo estimado."
-                        accion={<button type="button" onClick={addDemora} className={btnMini}><IconMas className="h-3.5 w-3.5" /> Agregar demora</button>}
+                        descripcion="Lo que impidió cumplir el plazo estimado."
+                        accion={<button type="button" onClick={addDemora} className={btnBorde}>+ Agregar</button>}
                     >
                         {coordForm.Demoras.length === 0 ? (
-                            <p className="border border-dashed border-iron-300 bg-iron-50 px-4 py-5 text-center text-[12px] text-iron-500">
-                                Sin demoras registradas.
-                            </p>
+                            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center">
+                                <p className="text-xs text-slate-500">Sin demoras registradas.</p>
+                            </div>
                         ) : (
                             <div className="space-y-2">
                                 {coordForm.Demoras.map((dem, i) => (
-                                    <div key={i} className="flex items-end gap-3 border-l-2 border-alarm bg-alarm-wash/50 p-3">
+                                    <div key={i} className="rounded-lg border border-red-200 bg-red-50 p-3 flex flex-col sm:flex-row gap-3 sm:items-end">
                                         <div className="flex-1">
-                                            <label className={rotuloMini}>Qué pasó</label>
-                                            <input type="text" value={dem.Descripcion} onChange={(e) => setDemora(i, "Descripcion", e.target.value)} className={campoMini} placeholder="Describa la demora" required />
+                                            <Campo label="Qué pasó">
+                                                <input type="text" value={dem.Descripcion} onChange={(e) => setDemora(i, "Descripcion", e.target.value)} className={inputCls} placeholder="Describe la demora" required />
+                                            </Campo>
                                         </div>
-                                        <div className="w-40">
-                                            <label className={rotuloMini}>Fecha</label>
-                                            <input type="date" value={dem.Fecha} onChange={(e) => setDemora(i, "Fecha", e.target.value)} className={`${campoMini} num`} required />
+                                        <div className="sm:w-44">
+                                            <Campo label="Fecha">
+                                                <input type="date" value={dem.Fecha} onChange={(e) => setDemora(i, "Fecha", e.target.value)} className={inputCls} required />
+                                            </Campo>
                                         </div>
-                                        <button type="button" onClick={() => delDemora(i)} aria-label="Quitar demora" className="mb-1 rounded-[3px] p-1.5 text-iron-400 transition-colors hover:bg-white hover:text-alarm">
-                                            <IconX className="h-4 w-4" />
+                                        <button
+                                            type="button" onClick={() => delDemora(i)}
+                                            className="text-xs font-semibold text-red-600 hover:text-red-800 cursor-pointer sm:mb-3"
+                                        >
+                                            Quitar
                                         </button>
                                     </div>
                                 ))}
                             </div>
                         )}
-                    </Bloque>
+                    </Seccion>
 
-                    <Bloque titulo="Evidencias" nota="Se suman a las que ya tenga la solicitud; nada se reemplaza." ultimo>
-                        <div className="border border-dashed border-iron-300 bg-iron-50 px-4 py-4">
+                    <Seccion numero={enCierre ? 6 : 5} titulo="Evidencias" descripcion="Se suman a las que ya tenga la solicitud; nada se reemplaza.">
+                        <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-4">
                             <input
                                 type="file" accept="image/*" multiple onChange={(e) => setCoordEvidenceFiles(Array.from(e.target.files))} ref={fileRef}
-                                className="block w-full cursor-pointer text-[13px] text-iron-600 file:mr-4 file:cursor-pointer file:rounded-[3px] file:border-0 file:bg-dye file:px-4 file:py-2 file:font-sans file:text-[13px] file:font-semibold file:text-white hover:file:bg-dye-mid"
+                                className="block w-full text-sm text-slate-600 cursor-pointer file:mr-4 file:cursor-pointer file:rounded-lg file:border-0 file:bg-slate-900 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-slate-800"
                             />
                             {coordEvidenceFiles.length > 0 && (
-                                <p className="mt-2 text-[12px] text-spec">
+                                <p className="text-xs font-semibold text-emerald-700 mt-2">
                                     {coordEvidenceFiles.length} {coordEvidenceFiles.length > 1 ? 'fotos listas' : 'foto lista'} para anexar.
                                 </p>
                             )}
                         </div>
-                    </Bloque>
+                    </Seccion>
                 </form>
 
                 {error && (
-                    <div className="flex items-start gap-2.5 border-t border-alarm/30 bg-alarm-wash px-6 py-3">
-                        <svg className="mt-px h-4 w-4 shrink-0 text-alarm" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7">
-                            <circle cx="10" cy="10" r="7.5" /><path d="M10 6v5M10 13.5v.5" strokeLinecap="square" />
-                        </svg>
-                        <p className="text-[12px] font-medium leading-relaxed text-alarm">{error}</p>
+                    <div className="mx-4 sm:mx-6 mb-3 flex items-start gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 shrink-0">
+                        <span aria-hidden="true">⚠</span>
+                        <span>{error}</span>
                     </div>
                 )}
 
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-iron-200 bg-iron-50 px-6 py-4">
-                    <p className="text-[11px] text-iron-500">
-                        Firma <strong className="font-semibold text-iron-700">{userAuth.name}</strong>
-                    </p>
-                    <div className="flex gap-3">
-                        <button type="button" onClick={() => setManageModalItem(null)} className={btnLinea}>Cancelar</button>
-                        <button type="submit" form="form-gestion-coord" disabled={loading} className={btn}>
-                            {loading && (
-                                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                                    <circle className="opacity-30" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.4 0 0 5.4 0 12h4z" />
-                                </svg>
-                            )}
-                            {loading ? "Guardando..." : "Guardar gestión"}
-                        </button>
-                    </div>
+                <div className="sticky bottom-0 flex flex-col-reverse sm:flex-row sm:justify-end gap-2 px-4 sm:px-6 py-4 bg-slate-50 border-t border-slate-200 shrink-0">
+                    <button type="button" onClick={() => setManageModalItem(null)} className={btnSecundario}>Cancelar</button>
+                    <button type="submit" form="form-gestion-coord" disabled={loading} className={btnPrimario}>
+                        {loading && <span className="w-4 h-4 border-2 border-slate-900/40 border-t-slate-900 rounded-full animate-spin" />}
+                        {loading ? 'Guardando...' : 'Guardar gestión'}
+                    </button>
                 </div>
             </div>
         </div>

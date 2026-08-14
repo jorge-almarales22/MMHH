@@ -1,94 +1,89 @@
 /**
  * Tokens de interfaz.
  *
- * Direccion: taller de maquinas y herramientas. El cromo se pinta con azul de
- * trazado, los rotulos se graban en condensada como los diales de las maquinas y
- * todo numero se compone en mono. Nada de sombras difusas ni degradados: las
- * superficies se separan con filo de 1px, como piezas mecanizadas.
+ * Replican el sistema visual de App-GCOM: superficie slate-50, tarjetas blancas
+ * rounded-2xl, cromo slate-900 y acento amarillo. Un solo lugar los define para
+ * que los tres modulos se lean como la misma aplicacion.
  */
 
 /* --- superficies --- */
-export const placa = "bg-white border border-iron-200";
-export const placaSuave = "bg-iron-50 border border-iron-200";
-
-/* --- rotulos --- */
-export const dial = "dial text-[11px] text-iron-500";
-export const dialClaro = "dial text-[11px] text-scribe";
-export const rotulo = "block text-[11px] font-medium text-iron-600 mb-1.5";
-export const rotuloMini = "dial block text-[10px] text-iron-500 mb-1";
+export const tarjeta = "bg-white rounded-2xl border border-slate-200";
+export const tarjetaVacia = "bg-white rounded-2xl border border-dashed border-slate-300 py-14 px-4 text-center";
 
 /* --- campos --- */
-const campoBase =
-    "block w-full rounded-[3px] border bg-white text-iron-900 placeholder:text-iron-400 " +
-    "outline-none transition-colors border-iron-300 " +
-    "hover:border-iron-400 focus:border-brand focus:ring-2 focus:ring-brand/20 " +
-    "disabled:bg-iron-100 disabled:text-iron-400";
+export const inputCls =
+    'w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 ' +
+    'placeholder:text-slate-400 outline-none transition focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200';
 
-export const campo = `${campoBase} px-3 py-2.5 text-[14px]`;
-export const campoMini = `${campoBase} px-2.5 py-2 text-[13px]`;
-export const campoFiltro = `${campoBase} px-2.5 py-[7px] text-[13px]`;
+/* El chevron vive en index.css, sobre el propio elemento select. */
+export const selectCls = inputCls;
 
 /* --- botones --- */
-export const btn =
-    "inline-flex items-center justify-center gap-2 rounded-[3px] bg-brand px-5 py-2.5 text-[13px] " +
-    "font-semibold text-white transition-colors hover:bg-brand-deep " +
-    "disabled:opacity-50 disabled:cursor-not-allowed";
+export const btnPrimario =
+    "px-5 py-2.5 rounded-lg bg-yellow-400 hover:bg-yellow-500 text-slate-900 text-sm font-bold cursor-pointer " +
+    "disabled:opacity-60 disabled:cursor-wait inline-flex items-center justify-center gap-2";
 
-export const btnLinea =
-    "inline-flex items-center justify-center gap-2 rounded-[3px] border border-iron-300 bg-white px-4 py-2.5 " +
-    "text-[13px] font-semibold text-iron-700 transition-colors hover:border-iron-400 hover:bg-iron-50";
+export const btnSecundario =
+    "px-4 py-2.5 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-200 cursor-pointer";
 
-export const btnMini =
-    "inline-flex items-center gap-1.5 rounded-[3px] border border-iron-300 bg-white px-2.5 py-1.5 " +
-    "text-[12px] font-semibold text-iron-700 transition-colors hover:border-iron-400 hover:bg-iron-50";
+export const btnBorde =
+    "px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 " +
+    "hover:border-slate-400 cursor-pointer inline-flex items-center gap-2";
 
-export const btnTexto =
-    "inline-flex items-center gap-1.5 text-[12px] font-medium text-iron-500 underline-offset-4 " +
-    "transition-colors hover:text-iron-900 hover:underline";
+export const btnOscuro =
+    "px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold cursor-pointer hover:bg-slate-800";
 
 /* --- tabla --- */
-export const th = "dial px-3 py-2.5 text-left text-[10px] text-iron-500 whitespace-nowrap";
-export const td = "px-3 py-3 text-[13px] text-iron-700 align-middle";
+export const th = "px-4 py-3 font-bold";
+export const theadCls = "bg-slate-50 text-left";
+export const theadTr = "text-[10px] uppercase tracking-wide text-slate-500";
 
-/* --- marcas de estado ---
-   Placa grabada: filo de 1px y fondo plano. Sin pildoras redondeadas. */
-export const marca = "inline-flex items-center rounded-[2px] px-2 py-[3px] text-[11px] font-medium whitespace-nowrap border";
+/* --- chips --- */
+export const chip = "inline-flex items-center gap-1 text-[11px] font-bold px-2 py-1 rounded-full border whitespace-nowrap";
 
-const ESTADO_MARCA = {
-    "En espera": "border-iron-300 bg-iron-100 text-iron-600",
-    "En proceso": "border-dye-line/35 bg-dye/[0.07] text-dye-mid",
-    "Pendiente por información": "border-brand/40 bg-brand-wash text-brand-deep",
-    "Pendiente por herramientas": "border-brand/40 bg-brand-wash text-brand-deep",
-    "Pendiente por Personal": "border-brand/40 bg-brand-wash text-brand-deep",
-    "Pendiente por equipo": "border-brand/40 bg-brand-wash text-brand-deep",
-    "Terminado": "border-spec/40 bg-spec-wash text-spec",
-    "Reportado cliente": "border-dye-line/35 bg-dye/[0.07] text-dye-mid",
-    "Entregado al cliente": "border-spec bg-spec text-white",
-    "Entregado a recibo": "border-spec bg-spec text-white"
+const ESTADO_CHIP = {
+    "En espera": "bg-slate-100 text-slate-600 border-slate-200",
+    "En proceso": "bg-blue-50 text-blue-700 border-blue-200",
+    "Pendiente por información": "bg-amber-50 text-amber-700 border-amber-200",
+    "Pendiente por herramientas": "bg-amber-50 text-amber-700 border-amber-200",
+    "Pendiente por Personal": "bg-amber-50 text-amber-700 border-amber-200",
+    "Pendiente por equipo": "bg-amber-50 text-amber-700 border-amber-200",
+    "Terminado": "bg-emerald-50 text-emerald-700 border-emerald-200",
+    "Reportado cliente": "bg-cyan-50 text-cyan-700 border-cyan-200",
+    "Entregado al cliente": "bg-emerald-600 text-white border-emerald-600",
+    "Entregado a recibo": "bg-emerald-600 text-white border-emerald-600"
 };
 
-export const marcaEstado = (e) => ESTADO_MARCA[e] || "border-iron-300 bg-iron-100 text-iron-500";
+export const chipEstado = (e) => ESTADO_CHIP[e] || "bg-slate-100 text-slate-500 border-slate-200";
 
-/* Sobre azul de trazado las marcas claras se apagan: allí se usa la variante en
-   negativo, con un punto que conserva la semántica del color. */
-export const marcaOscura = "border-white/25 bg-white/10 text-white gap-1.5";
-
-export const puntoEstado = (e) => {
-    if (["Entregado al cliente", "Entregado a recibo", "Terminado"].includes(e)) return "bg-spec";
-    if (String(e).startsWith("Pendiente")) return "bg-brand";
-    if (e === "En proceso" || e === "Reportado cliente") return "bg-scribe";
-    return "bg-iron-300";
-};
-
-export const marcaSolicitud = (e) =>
+export const chipSolicitud = (e) =>
     e === "Gestionado"
-        ? "border-dye-line/40 bg-dye/[0.07] text-dye-mid"
-        : "border-brand/45 bg-brand-wash text-brand-deep";
+        ? "bg-indigo-50 text-indigo-700 border-indigo-200"
+        : "bg-orange-50 text-orange-700 border-orange-200";
 
-/* Prioridad: escala de severidad, no diez colores distintos. */
-export const marcaPrioridad = (p) => {
-    if (p === "P0") return "border-alarm bg-alarm text-white";
-    if (p === "P01" || p === "P02") return "border-alarm/45 bg-alarm-wash text-alarm";
-    if (p === "P03" || p === "P1") return "border-brand/45 bg-brand-wash text-brand-deep";
-    return "border-iron-300 bg-iron-100 text-iron-600";
+export const chipPrioridad = (p) => {
+    if (p === "P0") return "bg-red-600 text-white border-red-600";
+    if (p === "P01" || p === "P02") return "bg-red-50 text-red-700 border-red-200";
+    if (p === "P03" || p === "P1") return "bg-amber-50 text-amber-700 border-amber-200";
+    if (p === "P2" || p === "P3") return "bg-sky-50 text-sky-700 border-sky-200";
+    return "bg-slate-100 text-slate-600 border-slate-200";
+};
+
+/* Plazo: el color reserva el rojo para lo que de verdad esta vencido. */
+export const chipPlazo = (estado) => ({
+    'dentro': "bg-emerald-50 text-emerald-700 border-emerald-200",
+    'limite': "bg-amber-50 text-amber-700 border-amber-200",
+    'fuera': "bg-red-50 text-red-700 border-red-200",
+    'cerrado-dentro': "bg-slate-100 text-slate-500 border-slate-200",
+    'cerrado-fuera': "bg-slate-100 text-slate-500 border-slate-200"
+}[estado] || "bg-slate-100 text-slate-500 border-slate-200");
+
+/* --- tinta de los tiles --- */
+export const TINTA = {
+    total: '#0f172a',
+    pendiente: '#2563eb',
+    proceso: '#0891b2',
+    entregada: '#059669',
+    vencida: '#b91c1c',
+    horas: '#0f172a'
 };

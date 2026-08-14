@@ -62,18 +62,18 @@ export const medirTolerancia = (d) => {
     return { prioridad, permitidos, dias, desvio, razon, cerrado, estado };
 };
 
-export const TONO_TOLERANCIA = {
-    'dentro': { texto: 'text-spec', barra: 'bg-spec', etiqueta: 'En tolerancia' },
-    'limite': { texto: 'text-brand-deep', barra: 'bg-brand', etiqueta: 'Al límite' },
-    'fuera': { texto: 'text-alarm', barra: 'bg-alarm', etiqueta: 'Fuera de tolerancia' },
-    'cerrado-dentro': { texto: 'text-iron-500', barra: 'bg-iron-400', etiqueta: 'Cerrada en plazo' },
-    'cerrado-fuera': { texto: 'text-iron-500', barra: 'bg-iron-400', etiqueta: 'Cerrada fuera de plazo' }
+export const ETIQUETA_TOLERANCIA = {
+    'dentro': 'En plazo',
+    'limite': 'Al límite',
+    'fuera': 'Fuera de plazo',
+    'cerrado-dentro': 'Cerrada en plazo',
+    'cerrado-fuera': 'Cerrada fuera de plazo'
 };
 
-/** Texto corto del desvio, en el vocabulario del taller. */
+/** Texto corto del desvio. */
 export const etiquetaDesvio = (t) => {
     if (!t) return '—';
     if (t.desvio > 0) return `+${t.desvio} d`;
-    if (t.desvio === 0) return 'al límite';
-    return `${Math.abs(t.desvio)} d de margen`;
+    if (t.desvio === 0) return 'último día';
+    return `${Math.abs(t.desvio)} d`;
 };

@@ -1,18 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     SUPERINTENDENCIAS, PRIORIDADES, FLOTAS, COORDINADORES_LISTA, AREAS_ENTREGA,
     ESTADOS_COORDINADOR, ESTADOS_SOLICITUD, AREAS_PROCESO
 } from '../constants';
-import { placa, dial } from '../ui';
-import { BarraFiltros, SelectFiltro, TextoFiltro, FechaFiltro } from './Filtros';
+import { inputCls, TINTA } from '../ui';
+import { Tile, Pildoras, SelectFiltro, FechaFiltro, FiltrosAvanzados } from './Filtros';
 import TablaSolicitudes from './TablaSolicitudes';
 
 const SEGMENTOS = [
-    { key: 'todos', label: 'Todas' },
-    { key: 'no_gestionado', label: 'Sin gestionar' },
-    { key: 'en_proceso', label: 'En proceso' },
-    { key: 'vencidas', label: 'Fuera de plazo' },
-    { key: 'entregados', label: 'Entregadas' }
+    { id: 'todos', label: 'Todas' },
+    { id: 'no_gestionado', label: 'Sin gestionar' },
+    { id: 'en_proceso', label: 'En proceso' },
+    { id: 'vencidas', label: 'Fuera de plazo' },
+    { id: 'entregados', label: 'Entregadas' }
 ];
 
 export const coordFilterVacio = {
@@ -22,63 +22,66 @@ export const coordFilterVacio = {
 };
 
 export default function TabCoordinador({ coordFilter, setCoordFilter, items, conteos, onViewDetails, onOpenManageModal }) {
+    const [avanzados, setAvanzados] = useState(false);
     const set = (c) => (e) => setCoordFilter(prev => ({ ...prev, [c]: e.target.value }));
-    const activos = Object.entries(coordFilter).filter(([k, v]) => k !== 'state' && v).length;
+    const activos = Object.entries(coordFilter).filter(([k, v]) => k !== 'state' && k !== 'search' && v).length;
 
     return (
-        <div className={`${placa} w-full animate-card-in`}>
-            <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border-b border-iron-200 px-5 py-4">
-                <div>
-                    <span className={dial}>Coordinación</span>
-                    <h2 className="mt-1 text-[19px] font-semibold leading-tight tracking-tight text-iron-900">
-                        Cola del taller
-                    </h2>
-                </div>
+        <div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900">Gestión de solicitudes</h2>
+            <p className="text-sm text-slate-500 mt-1">
+                Cola del taller · doble clic sobre una fila para abrirla
+            </p>
 
-                {/* Selector de estación: cada segmento lleva su conteo. No envuelve —
-                    al envolver quedaban huecos del fondo entre los botones. */}
-                <div className="thin-scroll -mx-1 flex max-w-full flex-nowrap gap-px overflow-x-auto rounded-[3px] border border-iron-300 bg-iron-300 sm:mx-0">
-                    {SEGMENTOS.map(s => {
-                        const activo = coordFilter.state === s.key;
-                        return (
-                            <button
-                                key={s.key} type="button"
-                                onClick={() => setCoordFilter(prev => ({ ...prev, state: s.key }))}
-                                className={`dial flex shrink-0 items-baseline gap-1.5 whitespace-nowrap px-3 py-2 text-[10px] transition-colors ${activo
-                                    ? 'bg-dye text-white'
-                                    : 'bg-white text-iron-500 hover:bg-iron-50 hover:text-iron-900'}`}
-                            >
-                                {s.label}
-                                <span className={`num text-[11px] font-medium ${activo ? 'text-scribe' : 'text-iron-400'}`}>
-                                    {conteos[s.key] ?? 0}
-                                </span>
-                            </button>
-                        );
-                    })}
-                </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3 my-4">
+                <Tile label="Todas" valor={conteos.todos} activo={coordFilter.state === 'todos'} onClick={() => setCoordFilter(p => ({ ...p, state: 'todos' }))} />
+                <Tile label="Sin gestionar" valor={conteos.no_gestionado} color={TINTA.pendiente} activo={coordFilter.state === 'no_gestionado'} onClick={() => setCoordFilter(p => ({ ...p, state: 'no_gestionado' }))} />
+                <Tile label="En proceso" valor={conteos.en_proceso} color={TINTA.proceso} activo={coordFilter.state === 'en_proceso'} onClick={() => setCoordFilter(p => ({ ...p, state: 'en_proceso' }))} />
+                <Tile label="Fuera de plazo" valor={conteos.vencidas} color={TINTA.vencida} activo={coordFilter.state === 'vencidas'} onClick={() => setCoordFilter(p => ({ ...p, state: 'vencidas' }))} />
+                <Tile label="Entregadas" valor={conteos.entregados} color={TINTA.entregada} activo={coordFilter.state === 'entregados'} onClick={() => setCoordFilter(p => ({ ...p, state: 'entregados' }))} />
             </div>
 
-            <BarraFiltros activos={activos} onLimpiar={() => setCoordFilter({ ...coordFilterVacio, state: coordFilter.state })}>
-                <TextoFiltro titulo="Buscar" value={coordFilter.search} onChange={set('search')} placeholder="N.º, OT, componente..." ancho="col-span-2" />
-                <SelectFiltro titulo="Estado solicitud" value={coordFilter.estadoSolicitud} onChange={set('estadoSolicitud')} opciones={ESTADOS_SOLICITUD} />
-                <SelectFiltro titulo="Estado componente" value={coordFilter.estadoComponente} onChange={set('estadoComponente')} opciones={ESTADOS_COORDINADOR} />
-                <SelectFiltro titulo="Prioridad coordinador" value={coordFilter.prioridadCoordinador} onChange={set('prioridadCoordinador')} opciones={Object.keys(PRIORIDADES)} todos="Todas" />
-                <SelectFiltro titulo="Prioridad cliente" value={coordFilter.prioridad} onChange={set('prioridad')} opciones={Object.keys(PRIORIDADES)} todos="Todas" />
-                <SelectFiltro titulo="Área de proceso" value={coordFilter.areaProceso} onChange={set('areaProceso')} opciones={AREAS_PROCESO} todos="Todas" />
-                <SelectFiltro titulo="Superintendencia" value={coordFilter.superintendencia} onChange={set('superintendencia')} opciones={SUPERINTENDENCIAS.filter(Boolean)} todos="Todas" />
-                <SelectFiltro titulo="Flota" value={coordFilter.flota} onChange={set('flota')} opciones={FLOTAS} todos="Todas" />
-                <SelectFiltro titulo="Coordinador recibe" value={coordFilter.coordinadorRecibe} onChange={set('coordinadorRecibe')} opciones={COORDINADORES_LISTA} />
-                <SelectFiltro titulo="Área de entrega" value={coordFilter.areaEntrega} onChange={set('areaEntrega')} opciones={AREAS_ENTREGA} todos="Todas" />
-                <FechaFiltro titulo="Ingreso desde" value={coordFilter.fechaDesde} onChange={set('fechaDesde')} />
-                <FechaFiltro titulo="Ingreso hasta" value={coordFilter.fechaHasta} onChange={set('fechaHasta')} />
-            </BarraFiltros>
+            <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 mb-4 space-y-3">
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                    <Pildoras
+                        opciones={SEGMENTOS}
+                        valor={coordFilter.state}
+                        onChange={(id) => setCoordFilter(p => ({ ...p, state: id }))}
+                    />
+                    <input
+                        value={coordFilter.search}
+                        onChange={set('search')}
+                        placeholder="Buscar por N.º, OT, componente, PN o contacto..."
+                        className={`${inputCls} flex-1 sm:min-w-[240px]`}
+                    />
+                </div>
+
+                <FiltrosAvanzados
+                    abierto={avanzados}
+                    onToggle={() => setAvanzados(v => !v)}
+                    activos={activos}
+                    onLimpiar={() => setCoordFilter({ ...coordFilterVacio, state: coordFilter.state, search: coordFilter.search })}
+                >
+                    <SelectFiltro titulo="Estado solicitud" value={coordFilter.estadoSolicitud} onChange={set('estadoSolicitud')} opciones={ESTADOS_SOLICITUD} />
+                    <SelectFiltro titulo="Estado componente" value={coordFilter.estadoComponente} onChange={set('estadoComponente')} opciones={ESTADOS_COORDINADOR} />
+                    <SelectFiltro titulo="Prioridad coordinador" value={coordFilter.prioridadCoordinador} onChange={set('prioridadCoordinador')} opciones={Object.keys(PRIORIDADES)} todos="Todas" />
+                    <SelectFiltro titulo="Prioridad cliente" value={coordFilter.prioridad} onChange={set('prioridad')} opciones={Object.keys(PRIORIDADES)} todos="Todas" />
+                    <SelectFiltro titulo="Área de proceso" value={coordFilter.areaProceso} onChange={set('areaProceso')} opciones={AREAS_PROCESO} todos="Todas" />
+                    <SelectFiltro titulo="Superintendencia" value={coordFilter.superintendencia} onChange={set('superintendencia')} opciones={SUPERINTENDENCIAS.filter(Boolean)} todos="Todas" />
+                    <SelectFiltro titulo="Flota" value={coordFilter.flota} onChange={set('flota')} opciones={FLOTAS} todos="Todas" />
+                    <SelectFiltro titulo="Coordinador recibe" value={coordFilter.coordinadorRecibe} onChange={set('coordinadorRecibe')} opciones={COORDINADORES_LISTA} />
+                    <SelectFiltro titulo="Área de entrega" value={coordFilter.areaEntrega} onChange={set('areaEntrega')} opciones={AREAS_ENTREGA} todos="Todas" />
+                    <FechaFiltro titulo="Ingreso desde" value={coordFilter.fechaDesde} onChange={set('fechaDesde')} />
+                    <FechaFiltro titulo="Ingreso hasta" value={coordFilter.fechaHasta} onChange={set('fechaHasta')} />
+                </FiltrosAvanzados>
+            </div>
 
             <TablaSolicitudes
                 items={items}
                 onViewDetails={onViewDetails}
                 onOpenManageModal={onOpenManageModal}
                 puedeGestionar
-                vacio="Ninguna solicitud en este estado."
+                vacio="No hay solicitudes para este filtro"
             />
         </div>
     );
