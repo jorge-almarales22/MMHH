@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { th, theadCls, theadTr, chip, chipEstado, chipSolicitud, chipPrioridad, chipPlazo, tarjetaVacia } from '../ui';
-import { getEstadoSolicitud, getPrioridadEfectiva, totalHorasHombre } from '../utils/helpers';
+import { getEstadoSolicitud, getPrioridadEfectiva, totalHorasHombre, avanceProcesos, trabajosVigentes } from '../utils/helpers';
 import { medirTolerancia, etiquetaDesvio } from '../utils/tolerancia';
+import { Paginacion } from './Filtros';
 
 const ChipPlazo = ({ t }) => {
     if (!t) return <span className="text-[11px] text-slate-400">—</span>;
@@ -10,6 +11,14 @@ const ChipPlazo = ({ t }) => {
             {etiquetaDesvio(t)}
         </span>
     );
+};
+
+/** Etiqueta corta de los trabajos: el primero y cuantos mas van detras. */
+const etiquetaTrabajos = (d) => {
+    const ts = trabajosVigentes(d);
+    if (ts.length === 0) return d.Soporte || "Sin trabajos";
+    const extra = ts.length > 1 ? ` +${ts.length - 1}` : "";
+    return `${ts[0].Soporte}${extra}`;
 };
 
 const Acciones = ({ item, onViewDetails, onOpenManageModal, puedeGestionar }) => (
@@ -32,6 +41,21 @@ const Acciones = ({ item, onViewDetails, onOpenManageModal, puedeGestionar }) =>
 );
 
 export default function TablaSolicitudes({ items, onViewDetails, onOpenManageModal, puedeGestionar, mostrarOrden = false, vacio }) {
+    const [pagina, setPagina] = useState(1);
+    const [porPagina, setPorPagina] = useState(25);
+
+    const total = items.length;
+    const paginas = Math.max(1, Math.ceil(total / porPagina));
+
+    // Filtrar o cambiar el tamano de pagina puede dejar la pagina actual fuera de
+    // rango: quien busca algo espera aterrizar en la primera pagina, no en un vacio.
+    useEffect(() => { if (pagina > paginas) setPagina(1); }, [pagina, paginas]);
+
+    const desde = (pagina - 1) * porPagina;
+    const visibles = useMemo(() => items.slice(desde, desde + porPagina), [items, desde, porPagina]);
+
+    const cambiarTamano = (n) => { setPorPagina(n); setPagina(1); };
+
     if (items.length === 0) {
         return (
             <div className={tarjetaVacia}>
@@ -62,7 +86,7 @@ export default function TablaSolicitudes({ items, onViewDetails, onOpenManageMod
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {items.map((item, idx) => {
+                            {visibles.map((item, idx) => {
                                 const d = item.parsedData;
                                 if (d.Error) {
                                     return (
@@ -79,6 +103,7 @@ export default function TablaSolicitudes({ items, onViewDetails, onOpenManageMod
                                 const pCoord = d.Coordinador && d.Coordinador.PrioridadCoordinador;
                                 const reclasificada = !!(pCoord && pCoord !== d.Prioridad);
                                 const hh = totalHorasHombre(d.Coordinador);
+                                const avance = avanceProcesos(d.Coordinador);
                                 const t = medirTolerancia(d);
                                 const vencida = t && t.estado === 'fuera';
 
@@ -93,7 +118,7 @@ export default function TablaSolicitudes({ items, onViewDetails, onOpenManageMod
                                     >
                                         {mostrarOrden && (
                                             <td className="px-4 py-3 align-top">
-                                                <span className="text-xs font-bold text-slate-400 tabular-nums">{idx + 1}</span>
+                                                <span className="text-xs font-bold text-slate-400 tabular-nums">{desde + idx + 1}</span>
                                             </td>
                                         )}
                                         <td className="px-4 py-3 whitespace-nowrap align-top">
@@ -102,8 +127,8 @@ export default function TablaSolicitudes({ items, onViewDetails, onOpenManageMod
                                         </td>
                                         <td className="px-4 py-3 max-w-[240px] align-top">
                                             <span className="text-slate-800">{d.NombreComponente}</span>
-                                            <span className="block text-[10px] text-slate-400 mt-0.5">
-                                                {d.Flota} · {d.Soporte}
+                                            <span className="block text-[10px] text-slate-400 mt-0.5" title={trabajosVigentes(d).map(t => `${t.Soporte}: ${t.TipoRequerimiento}`).join(' · ')}>
+                                                {d.Flota} · {etiquetaTrabajos(d)}
                                             </span>
                                         </td>
                                         <td className="px-4 py-3 align-top">
@@ -128,6 +153,14 @@ export default function TablaSolicitudes({ items, onViewDetails, onOpenManageMod
                                         </td>
                                         <td className="px-4 py-3 align-top">
                                             <span className="text-xs font-semibold text-slate-700 tabular-nums">{hh || "—"}</span>
+                                            {avance.total > 0 && (
+                                                <span
+                                                    className={`block text-[10px] tabular-nums mt-0.5 ${avance.hechos === avance.total ? 'text-emerald-600 font-bold' : 'text-slate-400'}`}
+                                                    title={`${avance.hechos} de ${avance.total} procesos ejecutados`}
+                                                >
+                                                    {avance.hechos}/{avance.total}
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3 align-top">
                                             <Acciones item={item} onViewDetails={onViewDetails} onOpenManageModal={onOpenManageModal} puedeGestionar={puedeGestionar} />
@@ -142,7 +175,7 @@ export default function TablaSolicitudes({ items, onViewDetails, onOpenManageMod
 
             {/* ---- Tarjetas (pantallas pequenas) ---- */}
             <div className="md:hidden space-y-2">
-                {items.map((item, idx) => {
+                {visibles.map((item, idx) => {
                     const d = item.parsedData;
                     if (d.Error) {
                         return (
@@ -166,7 +199,7 @@ export default function TablaSolicitudes({ items, onViewDetails, onOpenManageMod
                             <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-2">
-                                        {mostrarOrden && <span className="text-[11px] font-bold text-slate-400 tabular-nums">#{idx + 1}</span>}
+                                        {mostrarOrden && <span className="text-[11px] font-bold text-slate-400 tabular-nums">#{desde + idx + 1}</span>}
                                         <span className="font-bold text-slate-900 tabular-nums">{d.SolicitudID || "—"}</span>
                                         <span className={`${chip} ${chipPrioridad(prioridad)}`}>{prioridad}</span>
                                     </div>
@@ -191,6 +224,11 @@ export default function TablaSolicitudes({ items, onViewDetails, onOpenManageMod
                     );
                 })}
             </div>
+
+            <Paginacion
+                pagina={pagina} porPagina={porPagina} total={total}
+                onPagina={setPagina} onPorPagina={cambiarTamano}
+            />
         </>
     );
 }

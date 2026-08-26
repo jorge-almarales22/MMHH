@@ -1,5 +1,5 @@
 import { SP_CONFIG, ESTADO_SOLICITUD } from '../constants';
-import { esEstadoCierre, getCurrentDateTime, normalizarComentarios } from './helpers';
+import { esEstadoCierre, getCurrentDateTime, normalizarComentarios, comentariosCliente } from './helpers';
 
 export const authenticateUser = async () => {
     try {
@@ -72,22 +72,28 @@ export const createItem = async (formData, evidenceFiles, compressImageFn, gener
 
     const solicitudID = generateSolicitudIDFn(idsVigentes);
 
-    let finalTipoRequerimiento = formData.TipoRequerimiento.map(req => {
-        if (req === "Otro" && formData.TipoRequerimientoCustom["Otro"]) {
-            return formData.TipoRequerimientoCustom["Otro"];
-        }
-        return req;
-    });
+    // Los "Otro" se resuelven antes de guardar: en la base queda el texto que
+    // escribio el cliente, no la palabra "Otro", que no le dice nada a nadie.
+    const finalTrabajos = (formData.Trabajos || []).map(t => ({
+        Soporte: (t.Soporte === "Otro" && t.SoporteCustom) ? t.SoporteCustom : t.Soporte,
+        TipoRequerimiento: (t.TipoRequerimiento === "Otro" && t.TipoRequerimientoCustom)
+            ? t.TipoRequerimientoCustom
+            : t.TipoRequerimiento
+    }));
 
     let finalDataObj = {
         ...formData,
         SolicitudID: solicitudID,
-        TipoRequerimiento: finalTipoRequerimiento,
+        Trabajos: finalTrabajos,
+        // Soporte y TipoRequerimiento se siguen escribiendo planos: los filtros,
+        // el CSV y los registros ya guardados los leen desde ahi.
+        Soporte: finalTrabajos[0]?.Soporte || "",
+        TipoRequerimiento: finalTrabajos.map(t => t.TipoRequerimiento).filter(Boolean),
         // Estado de la solicitud: lo fija el sistema y nadie puede editarlo despues.
-        EstadoSolicitud: ESTADO_SOLICITUD.PENDIENTE
+        EstadoSolicitud: ESTADO_SOLICITUD.PENDIENTE,
+        ComentariosCliente: []
     };
     if (formData.Flota === "Otra" && formData.FlotaCustom) finalDataObj.Flota = formData.FlotaCustom;
-    if (formData.Soporte === "Otro" && formData.SoporteCustom) finalDataObj.Soporte = formData.SoporteCustom;
     if (formData.CoordinadorRecibe === "Otro" && formData.CoordinadorRecibeCustom) finalDataObj.CoordinadorRecibe = formData.CoordinadorRecibeCustom;
     if (formData.AreaEntrega === "Otra" && formData.AreaEntregaCustom) finalDataObj.AreaEntrega = formData.AreaEntregaCustom;
 
@@ -128,12 +134,22 @@ export const updateCoordinatorData = async (manageModalItem, coordForm, coordEvi
         coordBase64Images.push({ name: file.name, data: b64 });
     }
 
+    const sello = getCurrentDateTime();
+
     let finalProcesos = coordForm.Procesos.map(p => {
-        let proceso = { ...p };
+        // `NuevoComentario` es estado del formulario: no tiene por que viajar a
+        // SharePoint ni engordar el JSON del registro.
+        const { NuevoComentario, ...proceso } = p;
         if (p.ProcesoRequerido === "Otro" && p.ProcesoRequeridoCustom) proceso.ProcesoRequerido = p.ProcesoRequeridoCustom;
         if (p.SubprocesoRequerido === "Otro" && p.SubprocesoRequeridoCustom) proceso.SubprocesoRequerido = p.SubprocesoRequeridoCustom;
         if (p.AreaProceso === "Otro" && p.AreaProcesoCustom) proceso.AreaProceso = p.AreaProcesoCustom;
         proceso.EstimadoHorasHombre = Number(p.EstimadoHorasHombre) || 0;
+        proceso.HorasReales = Number(p.HorasReales) || 0;
+        proceso.Realizado = !!p.Realizado;
+        // Al persistirse, un comentario deja de estar pendiente y se le sella la
+        // firma del autor con la hora del guardado.
+        proceso.Comentarios = (p.Comentarios || []).map(({ Pendiente, ...c }) =>
+            Pendiente ? { ...c, Email: userAuth.email, Fecha: c.Fecha || sello } : c);
         return proceso;
     });
 
@@ -142,18 +158,6 @@ export const updateCoordinatorData = async (manageModalItem, coordForm, coordEvi
     // El historial se reconstruye desde lo ya persistido: el formulario solo puede
     // anexar, nunca reescribir ni borrar comentarios anteriores.
     const historialPrevio = [...normalizarComentarios(coordinadorPrevio)];
-    const sello = getCurrentDateTime();
-
-    const nuevoComentario = (coordForm.NuevoComentario || "").trim();
-    if (nuevoComentario) {
-        historialPrevio.push({
-            Texto: nuevoComentario,
-            Autor: userAuth.name,
-            Email: userAuth.email,
-            Fecha: sello,
-            EsCierre: false
-        });
-    }
 
     const yaTieneCierre = historialPrevio.some(c => c.EsCierre);
     const comentarioCierre = (coordForm.ComentarioCierre || "").trim();
@@ -171,8 +175,17 @@ export const updateCoordinatorData = async (manageModalItem, coordForm, coordEvi
     // Las evidencias tambien se acumulan en lugar de reemplazarse.
     const imagenesPrevias = Array.isArray(coordinadorPrevio.ImagenesBase64) ? coordinadorPrevio.ImagenesBase64 : [];
 
+    // Los trabajos vuelven a escribirse porque el coordinador pudo descartar
+    // alguno. Soporte y TipoRequerimiento se recalculan sobre los que siguen
+    // vigentes, que es lo que el taller va a ejecutar de verdad.
+    const trabajosRevisados = coordForm.Trabajos || [];
+    const vigentes = trabajosRevisados.filter(t => !t.Descartado);
+
     const updatedParsedData = {
         ...manageModalItem.parsedData,
+        Trabajos: trabajosRevisados,
+        Soporte: vigentes[0]?.Soporte || manageModalItem.parsedData.Soporte || "",
+        TipoRequerimiento: vigentes.map(t => t.TipoRequerimiento).filter(Boolean),
         // Cualquier gestion guardada marca la solicitud como Gestionado. Es irreversible.
         EstadoSolicitud: ESTADO_SOLICITUD.GESTIONADO,
         Coordinador: {
@@ -220,4 +233,54 @@ export const updateCoordinatorData = async (manageModalItem, coordForm, coordEvi
     });
 
     if (!response.ok) throw new Error("No se pudo actualizar el registro con la informacion del coordinador.");
+};
+
+
+/**
+ * Anexa un comentario del cliente al hilo de la solicitud.
+ *
+ * Se relee el registro antes de escribir: dos personas pueden tener abierto el
+ * mismo detalle y el que guarde de segundo no puede borrar el comentario del
+ * primero.
+ */
+export const appendClientComment = async (item, texto, userAuth) => {
+    const limpio = String(texto || "").trim();
+    if (!limpio) throw new Error("El comentario esta vacio.");
+
+    const digest = await getRequestDigest();
+    const entityType = await getEntityType(SP_CONFIG.listTitle);
+    const itemUrl = `${SP_CONFIG.siteUrl}/_api/web/lists/getbytitle('${SP_CONFIG.listTitle}')/items(${item.Id})`;
+
+    let base = item.parsedData;
+    try {
+        const fresco = await fetch(itemUrl, { headers: { "Accept": "application/json;odata=verbose" } });
+        if (fresco.ok) base = JSON.parse((await fresco.json()).d.Data);
+    } catch (e) {
+        console.warn("No se pudo releer la solicitud; se comenta sobre la copia en pantalla.", e);
+    }
+
+    const comentario = {
+        Texto: limpio,
+        Autor: userAuth.name,
+        Email: userAuth.email,
+        Fecha: getCurrentDateTime(),
+        Rol: userAuth.isCoordinator ? "Coordinacion" : "Cliente"
+    };
+
+    const actualizado = { ...base, ComentariosCliente: [...comentariosCliente(base), comentario] };
+
+    const response = await fetch(itemUrl, {
+        method: "POST",
+        headers: {
+            "Accept": "application/json;odata=verbose",
+            "Content-Type": "application/json;odata=verbose",
+            "X-RequestDigest": digest,
+            "X-HTTP-Method": "MERGE",
+            "IF-MATCH": "*"
+        },
+        body: JSON.stringify({ "__metadata": { "type": entityType }, Data: JSON.stringify(actualizado) })
+    });
+
+    if (!response.ok) throw new Error("No se pudo guardar el comentario.");
+    return comentario;
 };

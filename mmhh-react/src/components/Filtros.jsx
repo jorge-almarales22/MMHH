@@ -113,3 +113,94 @@ export const FiltrosAvanzados = ({ abierto, onToggle, activos, onLimpiar, childr
         )}
     </div>
 );
+
+/** Ventana de paginas alrededor de la actual: con 40 paginas no caben todas. */
+const ventanaPaginas = (actual, total, ancho = 5) => {
+    if (total <= ancho) return Array.from({ length: total }, (_, i) => i + 1);
+    let inicio = Math.max(1, actual - Math.floor(ancho / 2));
+    const fin = Math.min(total, inicio + ancho - 1);
+    inicio = Math.max(1, fin - ancho + 1);
+    return Array.from({ length: fin - inicio + 1 }, (_, i) => inicio + i);
+};
+
+const btnPagina = "min-w-[2rem] h-8 px-2 rounded-lg border text-xs font-bold cursor-pointer transition disabled:opacity-40 disabled:cursor-not-allowed";
+
+/**
+ * Paginacion de la lista.
+ *
+ * La cola del taller pasa de las cien solicitudes y desplazarse por todas para
+ * llegar al final no es forma de trabajar. El tamano de pagina es del usuario:
+ * quien revisa una por una quiere 10, quien busca un patron quiere 100.
+ */
+export const Paginacion = ({ pagina, porPagina, total, onPagina, onPorPagina, opcionesTamano = [10, 25, 50, 100] }) => {
+    const paginas = Math.max(1, Math.ceil(total / porPagina));
+    const desde = total === 0 ? 0 : (pagina - 1) * porPagina + 1;
+    const hasta = Math.min(pagina * porPagina, total);
+
+    return (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-3 no-print">
+            <p className="text-xs text-slate-500 tabular-nums">
+                Mostrando <strong className="text-slate-700">{desde}–{hasta}</strong> de{' '}
+                <strong className="text-slate-700">{total}</strong> solicitudes
+            </p>
+
+            <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <span className="hidden sm:inline">Por página</span>
+                    <select
+                        value={porPagina}
+                        onChange={(e) => onPorPagina(Number(e.target.value))}
+                        className="rounded-lg border border-slate-300 bg-white pl-2 pr-7 py-1.5 text-xs font-semibold text-slate-700 cursor-pointer outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200 bg-[position:right_0.35rem_center] bg-[size:14px]"
+                    >
+                        {opcionesTamano.map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                </label>
+
+                {paginas > 1 && (
+                    <div className="flex items-center gap-1">
+                        <button
+                            type="button" onClick={() => onPagina(pagina - 1)} disabled={pagina <= 1}
+                            className={`${btnPagina} border-slate-300 bg-white text-slate-600 hover:border-slate-400`}
+                            aria-label="Página anterior"
+                        >
+                            ‹
+                        </button>
+
+                        {ventanaPaginas(pagina, paginas)[0] > 1 && (
+                            <>
+                                <button type="button" onClick={() => onPagina(1)} className={`${btnPagina} border-slate-300 bg-white text-slate-600 hover:border-slate-400`}>1</button>
+                                <span className="text-xs text-slate-400 px-0.5">…</span>
+                            </>
+                        )}
+
+                        {ventanaPaginas(pagina, paginas).map(n => (
+                            <button
+                                key={n} type="button" onClick={() => onPagina(n)} aria-current={n === pagina ? 'page' : undefined}
+                                className={`${btnPagina} tabular-nums ${n === pagina
+                                    ? 'border-slate-900 bg-slate-900 text-white'
+                                    : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'}`}
+                            >
+                                {n}
+                            </button>
+                        ))}
+
+                        {ventanaPaginas(pagina, paginas).slice(-1)[0] < paginas && (
+                            <>
+                                <span className="text-xs text-slate-400 px-0.5">…</span>
+                                <button type="button" onClick={() => onPagina(paginas)} className={`${btnPagina} border-slate-300 bg-white text-slate-600 hover:border-slate-400 tabular-nums`}>{paginas}</button>
+                            </>
+                        )}
+
+                        <button
+                            type="button" onClick={() => onPagina(pagina + 1)} disabled={pagina >= paginas}
+                            className={`${btnPagina} border-slate-300 bg-white text-slate-600 hover:border-slate-400`}
+                            aria-label="Página siguiente"
+                        >
+                            ›
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};

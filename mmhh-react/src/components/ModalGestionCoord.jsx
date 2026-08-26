@@ -1,8 +1,10 @@
 import React, { useRef } from 'react';
-import { PROCESOS_COORDINADOR, ESTADOS_COORDINADOR, AREAS_PROCESO, PRIORIDADES } from '../constants';
+import { ESTADOS_COORDINADOR, PRIORIDADES } from '../constants';
 import { esEstadoCierre, getEstadoSolicitud, nuevoProceso } from '../utils/helpers';
 import { medirTolerancia, etiquetaDesvio, ETIQUETA_TOLERANCIA } from '../utils/tolerancia';
 import { inputCls, selectCls, btnPrimario, btnSecundario, btnBorde, chip, chipSolicitud, chipPlazo } from '../ui';
+import ProcesosTabla from './ProcesosTabla';
+import TrabajosRevision from './TrabajosRevision';
 
 const Seccion = ({ numero, titulo, descripcion, accion, children }) => (
     <section className="px-4 sm:px-6 py-5 border-b border-slate-100 last:border-b-0">
@@ -50,25 +52,13 @@ export default function ModalGestionCoord({
     const enCierre = esEstadoCierre(coordForm.Estado);
     const estadoSol = getEstadoSolicitud(d);
     const totalHH = coordForm.Procesos.reduce((a, p) => a + (Number(p.EstimadoHorasHombre) || 0), 0);
+    const totalReal = coordForm.Procesos.reduce((a, p) => a + (Number(p.HorasReales) || 0), 0);
+    const hechos = coordForm.Procesos.filter(p => p.Realizado).length;
     const tol = medirTolerancia(d);
 
     const setCampo = (e) => setCoordForm(p => ({ ...p, [e.target.name]: e.target.value }));
 
     const addProceso = () => setCoordForm(p => ({ ...p, Procesos: [...p.Procesos, nuevoProceso()] }));
-    const delProceso = (i) => coordForm.Procesos.length > 1 && setCoordForm(p => ({ ...p, Procesos: p.Procesos.filter((_, x) => x !== i) }));
-
-    const setProceso = (i, name, value) => setCoordForm(prev => {
-        const ps = [...prev.Procesos];
-        ps[i] = { ...ps[i], [name]: value };
-        if (name === "ProcesoRequerido") {
-            const subs = PROCESOS_COORDINADOR[value] || [];
-            ps[i].SubprocesoRequerido = subs[0] || "";
-            ps[i].ProcesoRequeridoCustom = "";
-            ps[i].SubprocesoRequeridoCustom = "";
-        }
-        if (name === "AreaProceso" && value !== "Otro") ps[i].AreaProcesoCustom = "";
-        return { ...prev, Procesos: ps };
-    });
 
     const addDemora = () => setCoordForm(p => ({ ...p, Demoras: [...p.Demoras, { Descripcion: "", Fecha: new Date().toISOString().split('T')[0] }] }));
     const delDemora = (i) => setCoordForm(p => ({ ...p, Demoras: p.Demoras.filter((_, x) => x !== i) }));
@@ -84,7 +74,7 @@ export default function ModalGestionCoord({
             onClick={() => setManageModalItem(null)}
         >
             <div
-                className="bg-white w-full sm:max-w-3xl rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] sm:max-h-[88vh] flex flex-col"
+                className="bg-white w-full sm:max-w-5xl rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[92vh] sm:max-h-[88vh] flex flex-col"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Cabecera */}
@@ -124,82 +114,40 @@ export default function ModalGestionCoord({
 
                     <Seccion
                         numero={1}
+                        titulo="Trabajos que pidió el cliente"
+                        descripcion="Si el taller no puede ejecutar alguno, descártalo dejando el motivo."
+                    >
+                        <TrabajosRevision
+                            trabajos={coordForm.Trabajos}
+                            onChange={(t) => setCoordForm(p => ({ ...p, Trabajos: t }))}
+                            autor={userAuth.name}
+                        />
+                    </Seccion>
+
+                    <Seccion
+                        numero={2}
                         titulo="Procesos requeridos"
-                        descripcion="Cada proceso lleva el área donde se ejecuta y sus horas hombre."
+                        descripcion="Una fila por proceso: dónde se ejecuta, cuánto se estimó, si ya se hizo y qué pasó."
                         accion={
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs font-bold text-slate-500 tabular-nums">{totalHH} H/H</span>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[11px] font-bold text-slate-500 tabular-nums px-2 py-1 rounded-full bg-slate-100">
+                                    {hechos}/{coordForm.Procesos.length} hechos
+                                </span>
+                                <span className="text-[11px] font-bold text-slate-500 tabular-nums px-2 py-1 rounded-full bg-slate-100">
+                                    {totalReal} de {totalHH} H/H
+                                </span>
                                 <button type="button" onClick={addProceso} className={btnBorde}>+ Agregar</button>
                             </div>
                         }
                     >
-                        <div className="space-y-2">
-                            {coordForm.Procesos.map((proc, i) => {
-                                const subs = PROCESOS_COORDINADOR[proc.ProcesoRequerido] || [];
-                                return (
-                                    <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                                        <div className="flex items-center justify-between mb-3">
-                                            <span className="text-[11px] font-bold text-slate-500 uppercase">Proceso {i + 1}</span>
-                                            {coordForm.Procesos.length > 1 && (
-                                                <button
-                                                    type="button" onClick={() => delProceso(i)}
-                                                    className="text-xs font-semibold text-red-600 hover:text-red-800 cursor-pointer"
-                                                >
-                                                    Quitar
-                                                </button>
-                                            )}
-                                        </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            <Campo label="Proceso requerido">
-                                                <select value={proc.ProcesoRequerido} onChange={(e) => setProceso(i, "ProcesoRequerido", e.target.value)} className={selectCls} required>
-                                                    {Object.keys(PROCESOS_COORDINADOR).map(p => <option key={p} value={p}>{p}</option>)}
-                                                </select>
-                                                {proc.ProcesoRequerido === "Otro" && (
-                                                    <input type="text" value={proc.ProcesoRequeridoCustom} onChange={(e) => setProceso(i, "ProcesoRequeridoCustom", e.target.value)} className={`${inputCls} mt-2`} placeholder="¿Qué proceso?" required />
-                                                )}
-                                            </Campo>
-
-                                            <Campo label="Subproceso requerido">
-                                                {subs.length === 0 ? (
-                                                    <input type="text" readOnly value="No requiere" className={`${inputCls} bg-slate-100 text-slate-400`} />
-                                                ) : subs.length === 1 && subs[0] === "Otro" ? (
-                                                    <input type="text" value={proc.SubprocesoRequeridoCustom} onChange={(e) => setProceso(i, "SubprocesoRequeridoCustom", e.target.value)} className={inputCls} placeholder="¿Cuál subproceso?" required />
-                                                ) : (
-                                                    <>
-                                                        <select value={proc.SubprocesoRequerido} onChange={(e) => setProceso(i, "SubprocesoRequerido", e.target.value)} className={selectCls} required>
-                                                            {subs.map(s => <option key={s} value={s}>{s}</option>)}
-                                                        </select>
-                                                        {proc.SubprocesoRequerido === "Otro" && (
-                                                            <input type="text" value={proc.SubprocesoRequeridoCustom} onChange={(e) => setProceso(i, "SubprocesoRequeridoCustom", e.target.value)} className={`${inputCls} mt-2`} placeholder="¿Cuál subproceso?" required />
-                                                        )}
-                                                    </>
-                                                )}
-                                            </Campo>
-
-                                            <Campo label="Área de proceso requerido">
-                                                <select value={proc.AreaProceso || ""} onChange={(e) => setProceso(i, "AreaProceso", e.target.value)} className={selectCls} required>
-                                                    {AREAS_PROCESO.map(a => <option key={a} value={a}>{a}</option>)}
-                                                </select>
-                                                {proc.AreaProceso === "Otro" && (
-                                                    <input type="text" value={proc.AreaProcesoCustom || ""} onChange={(e) => setProceso(i, "AreaProcesoCustom", e.target.value)} className={`${inputCls} mt-2`} placeholder="¿Cuál área?" required />
-                                                )}
-                                            </Campo>
-
-                                            <Campo label="Horas hombre estimado">
-                                                <input
-                                                    type="number" min="0" step="0.5" value={proc.EstimadoHorasHombre ?? 0}
-                                                    onChange={(e) => setProceso(i, "EstimadoHorasHombre", e.target.value)}
-                                                    className={inputCls} required
-                                                />
-                                            </Campo>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                        <ProcesosTabla
+                            procesos={coordForm.Procesos}
+                            onChange={(ps) => setCoordForm(p => ({ ...p, Procesos: ps }))}
+                            autor={userAuth.name}
+                        />
                     </Seccion>
 
-                    <Seccion numero={2} titulo="Seguimiento" descripcion="La prioridad que fijes aquí es la que manda en la cola y en las métricas.">
+                    <Seccion numero={3} titulo="Seguimiento" descripcion="La prioridad que fijes aquí es la que manda en la cola y en las métricas.">
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                             <Campo label="Estado del componente">
                                 <select name="Estado" value={coordForm.Estado} onChange={setCampo} className={selectCls} required>
@@ -227,47 +175,6 @@ export default function ModalGestionCoord({
                                     <input type="text" name="ComplementoMMHH" value={coordForm.ComplementoMMHH} onChange={setCampo} className={inputCls} placeholder="Información técnica complementaria" />
                                 </Campo>
                             </div>
-                        </div>
-                    </Seccion>
-
-                    <Seccion
-                        numero={3}
-                        titulo="Historial de comentarios"
-                        descripcion="Queda registrado con autor y fecha. No se edita ni se elimina."
-                        accion={<span className="text-xs font-bold text-slate-500 tabular-nums">{historial.length}</span>}
-                    >
-                        {historial.length === 0 ? (
-                            <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-center">
-                                <p className="text-xs text-slate-500">Todavía nadie ha comentado esta solicitud.</p>
-                            </div>
-                        ) : (
-                            <ol className="space-y-2 max-h-64 overflow-y-auto">
-                                {historial.map((c, i) => (
-                                    <li
-                                        key={i}
-                                        className={`rounded-lg border px-3 py-2.5 ${c.EsCierre ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'}`}
-                                    >
-                                        <div className="flex flex-wrap items-baseline gap-2 mb-1">
-                                            <span className="text-xs font-bold text-slate-800">{c.Autor || "Coordinador"}</span>
-                                            {c.EsCierre && (
-                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-600 text-white">CIERRE</span>
-                                            )}
-                                            <span className="ml-auto text-[11px] text-slate-400 tabular-nums">{c.Fecha}</span>
-                                        </div>
-                                        <p className="text-sm text-slate-700 whitespace-pre-wrap">{c.Texto}</p>
-                                    </li>
-                                ))}
-                            </ol>
-                        )}
-
-                        <div className="mt-3">
-                            <Campo label="Escribir un comentario" ayuda={`Se firma como ${userAuth.name} con la fecha de hoy.`}>
-                                <textarea
-                                    name="NuevoComentario" value={coordForm.NuevoComentario} onChange={setCampo}
-                                    rows="3" className={`${inputCls} resize-y`}
-                                    placeholder="Qué se hizo, qué se encontró o qué se acordó con el cliente."
-                                />
-                            </Campo>
                         </div>
                     </Seccion>
 

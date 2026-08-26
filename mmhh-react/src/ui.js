@@ -18,6 +18,14 @@ export const inputCls =
 /* El chevron vive en index.css, sobre el propio elemento select. */
 export const selectCls = inputCls;
 
+/* Campos dentro de una fila de tabla: mismo lenguaje, menos aire, porque la
+   densidad es justamente lo que hace legible una lista de diez procesos. */
+export const inputTabla =
+    'w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-[13px] text-slate-900 ' +
+    'placeholder:text-slate-400 outline-none transition focus:border-yellow-500 focus:ring-2 focus:ring-yellow-200';
+
+export const selectTabla = inputTabla + ' pr-7 bg-[position:right_0.35rem_center] bg-[size:14px]';
+
 /* --- botones --- */
 export const btnPrimario =
     "px-5 py-2.5 rounded-lg bg-yellow-400 hover:bg-yellow-500 text-slate-900 text-sm font-bold cursor-pointer " +
@@ -30,11 +38,17 @@ export const btnBorde =
     "px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold text-slate-700 " +
     "hover:border-slate-400 cursor-pointer inline-flex items-center gap-2";
 
+/* Boton de icono: quitar filas sin robarle ancho a los campos. */
+export const btnIcono =
+    "w-7 h-7 shrink-0 grid place-items-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600 " +
+    "cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-slate-400";
+
 export const btnOscuro =
     "px-4 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold cursor-pointer hover:bg-slate-800";
 
 /* --- tabla --- */
 export const th = "px-4 py-3 font-bold";
+export const thCompacto = "px-2 py-2 font-bold";
 export const theadCls = "bg-slate-50 text-left";
 export const theadTr = "text-[10px] uppercase tracking-wide text-slate-500";
 

@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { chip, chipEstado, chipSolicitud, chipPrioridad, chipPlazo, btnBorde } from '../ui';
-import { getEstadoSolicitud, totalHorasHombre } from '../utils/helpers';
+import { getEstadoSolicitud, totalHorasHombre, totalHorasReales, avanceProcesos, getTrabajos, comentariosCliente } from '../utils/helpers';
 import { medirTolerancia, etiquetaDesvio, ETIQUETA_TOLERANCIA } from '../utils/tolerancia';
+import { HiloComentarios, CajaComentario } from './Comentarios';
 
 const Dato = ({ label, children }) => (
     <div>
@@ -26,17 +27,44 @@ const BotonFotos = ({ imagenes, onVer }) => (
         : <span className="text-xs text-slate-400">Sin fotos</span>
 );
 
-export default function ModalDetalle({ viewModalItem, setViewModalItem, setModalImages, setActiveImageIndex }) {
+export default function ModalDetalle({ viewModalItem, setViewModalItem, setModalImages, setActiveImageIndex, userAuth, onAddComment }) {
+    const [borrador, setBorrador] = useState("");
+    const [enviando, setEnviando] = useState(false);
+    const [errorComentario, setErrorComentario] = useState(null);
+
+    // Cada solicitud abre con su caja limpia: un borrador no puede saltar de un
+    // componente a otro.
+    const idAbierto = viewModalItem?.Id;
+    useEffect(() => { setBorrador(""); setErrorComentario(null); }, [idAbierto]);
+
     if (!viewModalItem) return null;
 
     const d = viewModalItem.parsedData;
     const c = d.Coordinador;
     const fotosCliente = d.ImagenesBase64 || [];
     const estadoSol = getEstadoSolicitud(d);
-    const historial = (c && c.Comentarios) || [];
+    const historial = ((c && c.Comentarios) || []).filter(cm => cm.EsCierre);
+    const trabajos = getTrabajos(d);
+    const delCliente = comentariosCliente(d);
+    const avance = avanceProcesos(c);
     const tol = medirTolerancia(d);
+    const puedeComentar = typeof onAddComment === 'function';
 
     const abrirFotos = (lista) => { setModalImages(lista); setActiveImageIndex(0); };
+
+    const enviarComentario = async () => {
+        if (!borrador.trim()) return;
+        setEnviando(true);
+        setErrorComentario(null);
+        try {
+            await onAddComment(borrador);
+            setBorrador("");
+        } catch (err) {
+            setErrorComentario(err.message || "No se pudo guardar el comentario.");
+        } finally {
+            setEnviando(false);
+        }
+    };
 
     return (
         <div
@@ -91,12 +119,38 @@ export default function ModalDetalle({ viewModalItem, setViewModalItem, setModal
                         </div>
 
                         <div className="mt-4 pt-4 border-t border-slate-100">
-                            <Dato label="Soporte">{d.Soporte}</Dato>
-                            <div className="flex flex-wrap gap-1.5 mt-2">
-                                {(d.TipoRequerimiento || []).map((t, i) => (
-                                    <span key={i} className="text-[11px] font-semibold px-2 py-1 rounded-full bg-yellow-50 text-yellow-800 border border-yellow-200">{t}</span>
-                                ))}
-                            </div>
+                            <p className="text-[10px] uppercase tracking-wide text-slate-400 font-bold mb-2">
+                                Trabajos requeridos ({trabajos.length})
+                            </p>
+                            {trabajos.length === 0 ? (
+                                <p className="text-xs text-slate-400">Sin trabajos registrados.</p>
+                            ) : (
+                                <ol className="space-y-1.5">
+                                    {trabajos.map((t, i) => (
+                                        <li
+                                            key={i}
+                                            className={`rounded-lg border px-3 py-2 ${t.Descartado ? 'border-slate-200 bg-slate-50' : 'border-yellow-200 bg-yellow-50'}`}
+                                        >
+                                            <div className="flex items-start gap-2">
+                                                <span className={`grid shrink-0 w-5 h-5 rounded-full text-[10px] font-bold place-items-center mt-0.5 tabular-nums ${t.Descartado ? 'bg-slate-300 text-white' : 'bg-yellow-400 text-slate-900'}`}>
+                                                    {i + 1}
+                                                </span>
+                                                <p className={`text-sm flex-1 min-w-0 ${t.Descartado ? 'text-slate-400 line-through' : 'text-slate-800'}`}>
+                                                    <span className="font-semibold">{t.Soporte}</span>
+                                                    {t.TipoRequerimiento && <span className="text-slate-600"> · {t.TipoRequerimiento}</span>}
+                                                </p>
+                                            </div>
+                                            {t.Descartado && (
+                                                <div className="mt-1.5 ml-7 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1.5">
+                                                    <p className="text-[10px] font-bold uppercase tracking-wide text-amber-700">No se ejecuta</p>
+                                                    <p className="text-[13px] text-slate-700 whitespace-pre-wrap mt-0.5">{t.Descartado.Motivo}</p>
+                                                    <p className="text-[10px] text-slate-500 mt-1 tabular-nums">{t.Descartado.Autor} · {t.Descartado.Fecha}</p>
+                                                </div>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ol>
+                            )}
                         </div>
 
                         <div className="mt-4 pt-4 border-t border-slate-100">
@@ -117,7 +171,13 @@ export default function ModalDetalle({ viewModalItem, setViewModalItem, setModal
                                             : <span className="text-xs text-slate-400">Sin definir</span>}
                                     </Dato>
                                     <Dato label="Fecha estimada"><span className="tabular-nums">{c.FechaEstimado}</span></Dato>
-                                    <Dato label="Horas hombre"><span className="tabular-nums">{totalHorasHombre(c)}</span> H/H</Dato>
+                                    <Dato label="Horas hombre">
+                                        <span className="tabular-nums">{totalHorasReales(c)}</span>
+                                        <span className="text-slate-400"> de {totalHorasHombre(c)} H/H</span>
+                                    </Dato>
+                                    <Dato label="Procesos ejecutados">
+                                        <span className="tabular-nums">{avance.hechos} de {avance.total}</span>
+                                    </Dato>
                                     <Dato label="Se avisó al cliente">{c.NotificacionCliente}</Dato>
                                 </div>
 
@@ -125,16 +185,40 @@ export default function ModalDetalle({ viewModalItem, setViewModalItem, setModal
                                     <p className="text-[10px] uppercase tracking-wide text-slate-400 font-bold mb-2">Procesos requeridos</p>
                                     <ol className="space-y-2">
                                         {(c.Procesos || []).map((p, i) => (
-                                            <li key={i} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 flex items-start gap-3">
-                                                <span className="w-5 h-5 shrink-0 rounded-full bg-slate-900 text-white text-[10px] font-bold grid place-items-center mt-0.5">{i + 1}</span>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-sm font-semibold text-slate-800">
-                                                        {p.ProcesoRequerido}
-                                                        {p.SubprocesoRequerido && <span className="font-normal text-slate-500"> · {p.SubprocesoRequerido}</span>}
-                                                    </p>
-                                                    {p.AreaProceso && <p className="text-xs text-slate-500 mt-0.5">{p.AreaProceso}</p>}
+                                            <li key={i} className={`rounded-lg border px-3 py-2.5 ${p.Realizado ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-slate-50'}`}>
+                                                <div className="flex items-start gap-3">
+                                                    <span className={`w-5 h-5 shrink-0 rounded-full text-[10px] font-bold grid place-items-center mt-0.5 ${p.Realizado ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-white'}`}>
+                                                        {p.Realizado ? '✓' : i + 1}
+                                                    </span>
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-sm font-semibold text-slate-800">
+                                                            {p.ProcesoRequerido}
+                                                            {p.SubprocesoRequerido && <span className="font-normal text-slate-500"> · {p.SubprocesoRequerido}</span>}
+                                                        </p>
+                                                        {p.AreaProceso && <p className="text-xs text-slate-500 mt-0.5">{p.AreaProceso}</p>}
+                                                    </div>
+                                                    <div className="shrink-0 text-right">
+                                                        <span className="block text-xs font-bold text-slate-700 tabular-nums">
+                                                            {Number(p.HorasReales) || 0} / {Number(p.EstimadoHorasHombre) || 0} H/H
+                                                        </span>
+                                                        <span className={`block text-[10px] font-bold uppercase mt-0.5 ${p.Realizado ? 'text-emerald-700' : 'text-slate-400'}`}>
+                                                            {p.Realizado ? 'Hecho' : 'Pendiente'}
+                                                        </span>
+                                                    </div>
                                                 </div>
-                                                <span className="text-xs font-bold text-slate-600 tabular-nums shrink-0">{Number(p.EstimadoHorasHombre) || 0} H/H</span>
+                                                {(p.Comentarios || []).length > 0 && (
+                                                    <ul className="mt-2 ml-8 space-y-1.5">
+                                                        {p.Comentarios.map((cm, j) => (
+                                                            <li key={j} className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5">
+                                                                <div className="flex flex-wrap items-baseline gap-2">
+                                                                    <span className="text-[11px] font-bold text-slate-700">{cm.Autor}</span>
+                                                                    <span className="ml-auto text-[10px] text-slate-400 tabular-nums">{cm.Fecha}</span>
+                                                                </div>
+                                                                <p className="text-[13px] text-slate-700 whitespace-pre-wrap leading-snug">{cm.Texto}</p>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                )}
                                             </li>
                                         ))}
                                         {(!c.Procesos || c.Procesos.length === 0) && (
@@ -171,24 +255,8 @@ export default function ModalDetalle({ viewModalItem, setViewModalItem, setModal
                             </Bloque>
 
                             {historial.length > 0 && (
-                                <Bloque titulo={`Historial de comentarios (${historial.length})`}>
-                                    <ol className="space-y-2 max-h-64 overflow-y-auto">
-                                        {historial.map((cm, i) => (
-                                            <li
-                                                key={i}
-                                                className={`rounded-lg border px-3 py-2.5 ${cm.EsCierre ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'}`}
-                                            >
-                                                <div className="flex flex-wrap items-baseline gap-2 mb-1">
-                                                    <span className="text-xs font-bold text-slate-800">{cm.Autor}</span>
-                                                    {cm.EsCierre && (
-                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-600 text-white">CIERRE</span>
-                                                    )}
-                                                    <span className="ml-auto text-[11px] text-slate-400 tabular-nums">{cm.Fecha}</span>
-                                                </div>
-                                                <p className="text-sm text-slate-700 whitespace-pre-wrap">{cm.Texto}</p>
-                                            </li>
-                                        ))}
-                                    </ol>
+                                <Bloque titulo="Cierre del requerimiento">
+                                    <HiloComentarios comentarios={historial} alto="max-h-64" />
                                 </Bloque>
                             )}
                         </>
@@ -202,6 +270,38 @@ export default function ModalDetalle({ viewModalItem, setViewModalItem, setModal
                             </div>
                         </Bloque>
                     )}
+
+                    <Bloque
+                        titulo="Comentarios sobre la solicitud"
+                        accion={<span className="text-xs font-bold text-slate-500 tabular-nums">{delCliente.length}</span>}
+                    >
+                        <p className="text-xs text-slate-500 -mt-1 mb-3">
+                            Aquí el cliente y el taller se hablan. Cada comentario queda con autor y fecha; no se edita ni se elimina.
+                        </p>
+
+                        <HiloComentarios
+                            comentarios={delCliente}
+                            vacio="Todavía nadie ha comentado esta solicitud."
+                            alto="max-h-72"
+                        />
+
+                        {puedeComentar && (
+                            <div className="mt-3">
+                                <CajaComentario
+                                    value={borrador}
+                                    onChange={setBorrador}
+                                    onAdd={enviarComentario}
+                                    enviando={enviando}
+                                    placeholder="Escribe una novedad, una pregunta al taller o una aclaración sobre la pieza."
+                                    firma={`Se firma como ${userAuth?.name || "usuario"} y se guarda de inmediato.`}
+                                    etiquetaBoton="Publicar comentario"
+                                />
+                                {errorComentario && (
+                                    <p className="text-[11px] text-red-600 mt-1.5">{errorComentario}</p>
+                                )}
+                            </div>
+                        )}
+                    </Bloque>
                 </div>
             </div>
         </div>

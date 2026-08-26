@@ -31,7 +31,7 @@ export const AREAS_PROCESO = [
     "Rectificador plano Mayor", "Rectificador plano Medio", "Rectificador plano Menor",
     "Rectificado cilindro externo", "Rectificado cilindro interno",
     "Taladro Mayor", "Taladro Menor", "Taladro portatil", "Taladro manual",
-    "Torno Pórtatil", "Segueta", "Soldadura manual", "Rotosoldado", "END",
+    "Torno Pórtatil", "Torno Portatil Interno", "Segueta", "Soldadura manual", "Rotosoldado", "END",
     "Soldadura soporte", "Alistamiento", "Evaluación dimensional", "Cepillo",
     "Fresadora", "Otro"
 ];
@@ -95,6 +95,9 @@ export const SUPERINTENDENCIAS = [
     "Puerto bolivar", "Sin superintendencia", "Superintendencia de servicios eléctricos",
     "Tecnologia informacion", "TOR"
 ];
+
+/* Tope de trabajos que un cliente puede pedir en una sola solicitud. */
+export const MAX_TRABAJOS_CLIENTE = 6;
 
 export const COORDINADORES_LISTA = ["Jesus Padilla", "Isaac Jimenez", "Manuel Redondo", "Francisco Silvera", "Otro"];
 export const AREAS_ENTREGA = ["Mesa Amarilla", "Oficina de Coordinación", "Área Amarilla Mecanizado", "Área Amarilla de Bloques", "Área de END", "Área de vía 40", "Otra"];

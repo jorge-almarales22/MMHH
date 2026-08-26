@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { AUTORIZADOS, ESTADOS_COORDINADOR, ESTADO_SOLICITUD } from './constants';
 import {
-    initialFormState, initialCoordinatorFormState, nuevoProceso, getCurrentDate,
+    initialFormState, initialCoordinatorFormState, nuevoProceso, normalizarProceso, getCurrentDate,
     generateSolicitudID, compressImage, downloadCSV, getEstadoSolicitud,
-    esEstadoCierre, normalizarComentarios, totalHorasHombre
+    esEstadoCierre, normalizarComentarios, totalHorasHombre, getTrabajos, resumirTrabajos, comentariosCliente
 } from './utils/helpers';
 import { medirTolerancia } from './utils/tolerancia';
-import { authenticateUser, fetchItems, createItem, updateCoordinatorData } from './utils/sharepointApi';
+import { authenticateUser, fetchItems, createItem, updateCoordinatorData, appendClientComment } from './utils/sharepointApi';
 import Navbar from './components/Navbar';
 import TabCliente from './components/TabCliente';
 import TabCoordinador, { coordFilterVacio } from './components/TabCoordinador';
@@ -28,7 +28,7 @@ const aplicaFiltros = (items, f) => {
     if (f.search) {
         const s = f.search.toLowerCase();
         out = out.filter(({ parsedData: d }) =>
-            [d.SolicitudID, d.OT, d.NombreComponente, d.Flota, d.Soporte, d.PN, d.SC,
+            [d.SolicitudID, d.OT, d.NombreComponente, d.Flota, resumirTrabajos(d), d.PN, d.SC,
             d.NombreContacto, d.CoordinadorRecibe, d.AreaEntrega, d.Superintendencia]
                 .some(v => String(v || "").toLowerCase().includes(s)));
     }
@@ -134,7 +134,11 @@ export default function App() {
     const handleSubmitCliente = async (e) => {
         e.preventDefault();
         if (!formData.OT || formData.OT.length !== 8) return setError("La OT necesita exactamente 8 caracteres.");
-        if (formData.TipoRequerimiento.length === 0) return setError("Marca al menos un tipo de requerimiento.");
+
+        const trabajos = formData.Trabajos || [];
+        if (trabajos.length === 0) return setError("Agrega al menos un trabajo requerido.");
+        const incompleto = trabajos.findIndex(t => !t.Soporte || !String(t.TipoRequerimiento || "").trim());
+        if (incompleto !== -1) return setError(`Al trabajo ${incompleto + 1} le falta el soporte o el tipo de requerimiento.`);
 
         setLoading(true);
         setError(null);
@@ -151,6 +155,25 @@ export default function App() {
         finally { setLoading(false); }
     };
 
+    /**
+     * Comentario del cliente sobre una solicitud abierta.
+     *
+     * Se guarda de inmediato —el detalle no tiene boton de guardar— y el hilo en
+     * pantalla se actualiza sin esperar a la recarga para que quien escribe vea
+     * su comentario en el acto. El error se propaga: lo pinta el propio modal.
+     */
+    const handleAddClientComment = async (texto) => {
+        const comentario = await appendClientComment(viewModalItem, texto, userAuth);
+        setViewModalItem(prev => prev && ({
+            ...prev,
+            parsedData: {
+                ...prev.parsedData,
+                ComentariosCliente: [...comentariosCliente(prev.parsedData), comentario]
+            }
+        }));
+        loadItems();
+    };
+
     const handleOpenManageModal = (item) => {
         setError(null);
         setManageModalItem(item);
@@ -162,8 +185,10 @@ export default function App() {
                 : [{ ProcesoRequerido: c.ProcesoRequerido || "Ensayo No destructivo", SubprocesoRequerido: c.SubprocesoRequerido || "" }];
 
             setCoordForm({
-                // Los procesos históricos no traían área ni horas: se completan con el default.
-                Procesos: previos.map(p => ({ ...nuevoProceso(), ...p })),
+                // Los procesos históricos no traían área, horas reales ni comentarios:
+                // normalizarProceso los completa para no romper los controles del formulario.
+                Procesos: previos.map(normalizarProceso),
+                Trabajos: getTrabajos(item.parsedData),
                 ComplementoMMHH: c.ComplementoMMHH || "",
                 Estado: ESTADOS_COORDINADOR.includes(c.Estado) ? c.Estado : "En espera",
                 PrioridadCoordinador: c.PrioridadCoordinador || item.parsedData.Prioridad || "P0",
@@ -171,13 +196,13 @@ export default function App() {
                 NotificacionCliente: c.NotificacionCliente || "No",
                 Demoras: c.Demoras || [],
                 Comentarios: normalizarComentarios(c),
-                NuevoComentario: "",
                 ComentarioCierre: ""
             });
         } else {
             setCoordForm({
                 ...initialCoordinatorFormState,
                 Procesos: [nuevoProceso()],
+                Trabajos: getTrabajos(item.parsedData),
                 PrioridadCoordinador: item.parsedData?.Prioridad || "P0",
                 Comentarios: []
             });
@@ -283,6 +308,7 @@ export default function App() {
             <ModalDetalle
                 viewModalItem={viewModalItem} setViewModalItem={setViewModalItem}
                 setModalImages={setModalImages} setActiveImageIndex={setActiveImageIndex}
+                userAuth={userAuth} onAddComment={handleAddClientComment}
             />
 
             <ModalImagenes

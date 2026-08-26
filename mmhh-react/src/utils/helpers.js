@@ -103,6 +103,17 @@ export const totalHorasHombre = (coordinador) => {
     return coordinador.Procesos.reduce((acc, p) => acc + (Number(p.EstimadoHorasHombre) || 0), 0);
 };
 
+export const totalHorasReales = (coordinador) => {
+    if (!coordinador || !coordinador.Procesos) return 0;
+    return coordinador.Procesos.reduce((acc, p) => acc + (Number(p.HorasReales) || 0), 0);
+};
+
+/** Avance del taller medido en procesos ejecutados, no en horas. */
+export const avanceProcesos = (coordinador) => {
+    const ps = (coordinador && coordinador.Procesos) || [];
+    return { hechos: ps.filter(p => p.Realizado).length, total: ps.length };
+};
+
 export const compressImage = (file) => new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -133,34 +144,46 @@ export const compressImage = (file) => new Promise((resolve, reject) => {
 
 export const downloadCSV = (filteredItems) => {
     const headers = [
-        "ID", "Fecha", "OT", "Flota", "Componente", "PN", "SC", "Soporte", "Tipo Requerimiento",
+        "ID", "Fecha", "OT", "Flota", "Componente", "PN", "SC", "Trabajos requeridos", "Trabajos descartados",
         "Prioridad Cliente", "Prioridad Coordinador", "Superintendencia", "Contacto", "Celular",
         "Coordinador Recibe", "Area Entrega", "Estado Solicitud", "Estado Componente",
-        "Procesos", "Areas de Proceso", "H/H Estimadas Total", "Fecha Estimado",
-        "Complemento MMHH", "Notificacion Cliente", "Demoras", "Comentarios", "Comentario de Cierre"
+        "Procesos", "Areas de Proceso", "Procesos ejecutados", "H/H Estimadas Total", "H/H Reales Total", "Fecha Estimado",
+        "Complemento MMHH", "Notificacion Cliente", "Demoras", "Comentarios de proceso",
+        "Comentarios del cliente", "Comentario de Cierre"
     ];
     const rows = filteredItems.map(item => {
         const d = item.parsedData;
         if (d.Error) return null;
         const c = d.Coordinador;
-        const procesos = c && c.Procesos
-            ? c.Procesos.map(p => `${p.ProcesoRequerido}${p.SubprocesoRequerido ? ": " + p.SubprocesoRequerido : ""}${p.EstimadoHorasHombre ? ` (${p.EstimadoHorasHombre} H/H)` : ""}`).join(" | ")
-            : "";
-        const areas = c && c.Procesos ? c.Procesos.map(p => p.AreaProceso || "").filter(Boolean).join(" | ") : "";
+        const listaProcesos = (c && c.Procesos) || [];
+        const procesos = listaProcesos
+            .map(p => `${p.ProcesoRequerido}${p.SubprocesoRequerido ? ": " + p.SubprocesoRequerido : ""}${p.EstimadoHorasHombre ? ` (${p.EstimadoHorasHombre} H/H est)` : ""}${p.Realizado ? " [hecho]" : ""}${Number(p.HorasReales) ? ` (${p.HorasReales} H/H real)` : ""}`)
+            .join(" | ");
+        const areas = listaProcesos.map(p => p.AreaProceso || "").filter(Boolean).join(" | ");
+        const avance = avanceProcesos(c);
+        const comentariosProceso = listaProcesos
+            .flatMap((p, i) => (p.Comentarios || []).map(cm => `[P${i + 1} ${cm.Fecha}] ${cm.Autor}: ${cm.Texto}`))
+            .join(" || ");
+        const trabajos = trabajosVigentes(d)
+            .map(t => `${t.Soporte}${t.TipoRequerimiento ? ": " + t.TipoRequerimiento : ""}`)
+            .join(" | ");
+        const descartados = getTrabajos(d)
+            .filter(t => t.Descartado)
+            .map(t => `${t.Soporte}: ${t.TipoRequerimiento} → ${t.Descartado.Motivo} (${t.Descartado.Autor}, ${t.Descartado.Fecha})`)
+            .join(" || ");
+        const delCliente = comentariosCliente(d).map(cm => `[${cm.Fecha}] ${cm.Autor}: ${cm.Texto}`).join(" || ");
         const demoras = c && c.Demoras ? c.Demoras.map(dem => `${dem.Descripcion || ""} (${dem.Fecha || ""})`).join(" | ") : "";
-        const historial = c && c.Comentarios
-            ? c.Comentarios.filter(cm => !cm.EsCierre).map(cm => `[${cm.Fecha}] ${cm.Autor}: ${cm.Texto}`).join(" || ")
-            : "";
         const cierre = c && c.Comentarios
             ? (c.Comentarios.filter(cm => cm.EsCierre).map(cm => `[${cm.Fecha}] ${cm.Autor}: ${cm.Texto}`).join(" || ") || (c.Comentario || ""))
             : "";
         return [
-            d.SolicitudID || "", d.Fecha || "", d.OT || "", d.Flota || "", d.NombreComponente || "", d.PN || "", d.SC || "", d.Soporte || "",
-            (d.TipoRequerimiento || []).join("; "), d.Prioridad || "", (c && c.PrioridadCoordinador) || "", d.Superintendencia || "",
+            d.SolicitudID || "", d.Fecha || "", d.OT || "", d.Flota || "", d.NombreComponente || "", d.PN || "", d.SC || "",
+            trabajos, descartados, d.Prioridad || "", (c && c.PrioridadCoordinador) || "", d.Superintendencia || "",
             d.NombreContacto || "", d.Celular || "", d.CoordinadorRecibe || "", d.AreaEntrega || "",
             getEstadoSolicitud(d), c ? c.Estado : "",
-            procesos, areas, totalHorasHombre(c), c ? c.FechaEstimado : "", c ? c.ComplementoMMHH : "", c ? c.NotificacionCliente : "",
-            demoras, historial, cierre
+            procesos, areas, `${avance.hechos}/${avance.total}`, totalHorasHombre(c), totalHorasReales(c),
+            c ? c.FechaEstimado : "", c ? c.ComplementoMMHH : "", c ? c.NotificacionCliente : "",
+            demoras, comentariosProceso, delCliente, cierre
         ];
     }).filter(Boolean);
 
@@ -178,13 +201,67 @@ export const downloadCSV = (filteredItems) => {
     URL.revokeObjectURL(url);
 };
 
+export const nuevoProceso = () => ({
+    ProcesoRequerido: "Ensayo No destructivo",
+    ProcesoRequeridoCustom: "",
+    SubprocesoRequerido: "Visual",
+    SubprocesoRequeridoCustom: "",
+    AreaProceso: "Mandrinadora",
+    AreaProcesoCustom: "",
+    EstimadoHorasHombre: 0,
+    /* Ejecucion: lo que de verdad paso con el proceso. */
+    Realizado: false,
+    HorasReales: 0,
+    Comentarios: [],
+    NuevoComentario: ""
+});
+
+/**
+ * Un proceso guardado antes de que existieran los campos de ejecucion no trae
+ * ni el check ni las horas reales: se completan con el default para que el
+ * formulario nunca reciba `undefined` en un control controlado.
+ */
+export const normalizarProceso = (p) => ({ ...nuevoProceso(), ...p, Comentarios: Array.isArray(p?.Comentarios) ? p.Comentarios : [], NuevoComentario: "" });
+
+/** Un trabajo requerido: una categoria de soporte con un unico tipo de requerimiento. */
+export const nuevoTrabajo = () => ({
+    Soporte: "",
+    SoporteCustom: "",
+    TipoRequerimiento: "",
+    TipoRequerimientoCustom: ""
+});
+
+/**
+ * Trabajos requeridos normalizados.
+ *
+ * Los registros viejos guardaban un unico `Soporte` con una lista de tipos
+ * marcados. Cada tipo marcado se convierte aqui en un trabajo independiente,
+ * que es como se capturan ahora, para que el historico se lea igual que lo nuevo.
+ */
+export const getTrabajos = (d) => {
+    if (!d) return [];
+    if (Array.isArray(d.Trabajos) && d.Trabajos.length > 0) return d.Trabajos;
+    const soporte = d.Soporte || "";
+    const tipos = Array.isArray(d.TipoRequerimiento) ? d.TipoRequerimiento : (d.TipoRequerimiento ? [d.TipoRequerimiento] : []);
+    if (!soporte && tipos.length === 0) return [];
+    if (tipos.length === 0) return [{ Soporte: soporte, TipoRequerimiento: "" }];
+    return tipos.map(t => ({ Soporte: soporte, TipoRequerimiento: t }));
+};
+
+/** Trabajos que siguen vigentes: los descartados por el coordinador no cuentan. */
+export const trabajosVigentes = (d) => getTrabajos(d).filter(t => !t.Descartado);
+
+/** Texto plano de los trabajos, para buscadores y exportaciones. */
+export const resumirTrabajos = (d) =>
+    getTrabajos(d).map(t => `${t.Soporte}${t.TipoRequerimiento ? ": " + t.TipoRequerimiento : ""}`).join(" | ");
+
+/** Comentarios que el cliente (o quien abra el detalle) deja sobre la solicitud. */
+export const comentariosCliente = (d) => (d && Array.isArray(d.ComentariosCliente)) ? d.ComentariosCliente : [];
+
 export const initialFormState = {
     SolicitudID: "",
     Fecha: getCurrentDate(),
-    Soporte: "",
-    SoporteCustom: "",
-    TipoRequerimiento: [],
-    TipoRequerimientoCustom: {},
+    Trabajos: [nuevoTrabajo()],
     Flota: "793D",
     FlotaCustom: "",
     DetalleRequerimiento: "",
@@ -205,18 +282,9 @@ export const initialFormState = {
     ImagenesBase64: []
 };
 
-export const nuevoProceso = () => ({
-    ProcesoRequerido: "Ensayo No destructivo",
-    ProcesoRequeridoCustom: "",
-    SubprocesoRequerido: "Visual",
-    SubprocesoRequeridoCustom: "",
-    AreaProceso: "Mandrinadora",
-    AreaProcesoCustom: "",
-    EstimadoHorasHombre: 0
-});
-
 export const initialCoordinatorFormState = {
     Procesos: [nuevoProceso()],
+    Trabajos: [],
     ComplementoMMHH: "",
     Estado: "En espera",
     PrioridadCoordinador: "P0",
@@ -224,6 +292,5 @@ export const initialCoordinatorFormState = {
     NotificacionCliente: "No",
     Demoras: [],
     Comentarios: [],
-    NuevoComentario: "",
     ComentarioCierre: ""
 };
